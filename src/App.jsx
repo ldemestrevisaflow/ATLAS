@@ -6,6 +6,7 @@ import NewOperation from './pages/NewOperation'
 import Metrics from './pages/Metrics'
 import BattleMapPage from './pages/BattleMapPage'
 import Tasks from './pages/Tasks'
+import AIScheduler from './pages/AIScheduler'
 
 export default function App() {
   return (
@@ -17,6 +18,7 @@ export default function App() {
         <Route path="/metrics" element={<Metrics />} />
         <Route path="/battlemap" element={<BattleMapPage />} />
         <Route path="/tasks" element={<Tasks />} />
+        <Route path="/ai-scheduler" element={<AIScheduler />} />
       </Routes>
     </Layout>
   )
