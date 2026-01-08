@@ -113,4 +113,99 @@ export default function OperationView() {
   return (
     <div className="space-y-6">
       <div className="flex items-start gap-4">
-        <button onClick={() => navi
+        <button onClick={() => navigate('/')} className="p-2 text-text-muted hover:text-text-primary hover:bg-tactical-hover rounded transition-all mt-1"><ArrowLeft className="w-5 h-5" /></button>
+        <div>
+          <div className="flex items-center gap-3"><span className={`px-2 py-1 rounded text-xs font-mono font-medium status-${operation.status}`}>{operation.status?.toUpperCase()}</span><span className="text-xs text-text-muted font-mono">{operation.code}</span></div>
+          <h1 className="text-2xl font-bold mt-2">{operation.name}</h1>
+          {operation.description && <p className="text-text-secondary mt-1">{operation.description}</p>}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="card p-4 text-center"><p className="text-2xl font-bold">{stats.totalObjectives}</p><p className="text-[10px] text-text-muted font-mono">OBJECTIVES</p></div>
+        <div className="card p-4 text-center"><p className="text-2xl font-bold text-cyber-green">{stats.completedObjectives}</p><p className="text-[10px] text-text-muted font-mono">COMPLETE</p></div>
+        <div className="card p-4 text-center"><p className="text-2xl font-bold text-cyber-cyan">{stats.activeObjectives}</p><p className="text-[10px] text-text-muted font-mono">ACTIVE</p></div>
+        <div className="card p-4 text-center"><p className="text-2xl font-bold text-cyber-amber">{stats.pendingObjectives}</p><p className="text-[10px] text-text-muted font-mono">PENDING</p></div>
+        <div className="card p-4 text-center col-span-2 md:col-span-1"><p className="text-2xl font-bold text-gradient">{stats.progress}%</p><p className="text-[10px] text-text-muted font-mono">PROGRESS</p></div>
+      </div>
+
+      <div className="card p-4">
+        <div className="flex items-center justify-between text-sm mb-2"><span className="text-text-muted font-mono">OPERATION PROGRESS</span><span className="text-cyber-cyan font-mono font-bold">{stats.progress}%</span></div>
+        <div className="h-3 bg-tactical-bg rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-cyber-cyan to-cyber-green transition-all duration-500" style={{ width: `${stats.progress}%` }} /></div>
+        <div className="flex items-center justify-between text-xs text-text-muted mt-2 font-mono"><span>{stats.completedObjectives} / {stats.totalObjectives} objectives</span><span>{stats.completedTasks} / {stats.totalTasks} tasks</span></div>
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Phases & Objectives</h2><button onClick={() => setShowNewPhase(true)} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /><span className="hidden sm:inline">Add Phase</span></button></div>
+
+        {showNewPhase && (
+          <div className="card p-4 border-cyber-cyan"><h3 className="font-medium mb-3">New Phase</h3><div className="space-y-3"><input type="text" className="input" placeholder="Phase name..." value={newPhase.name} onChange={(e) => setNewPhase({ ...newPhase, name: e.target.value })} autoFocus /><input type="text" className="input font-mono" placeholder="Code (e.g., ALPHA)" value={newPhase.code} onChange={(e) => setNewPhase({ ...newPhase, code: e.target.value.toUpperCase() })} /><div className="flex gap-2"><button onClick={handleCreatePhase} className="btn-success">Create</button><button onClick={() => setShowNewPhase(false)} className="btn-secondary">Cancel</button></div></div></div>
+        )}
+
+        {phases.length === 0 && !showNewPhase ? (
+          <div className="card p-8 text-center"><Target className="w-12 h-12 text-text-muted mx-auto mb-3" /><p className="text-text-muted">No phases yet. Add a phase to get started.</p></div>
+        ) : phases.map((phase) => {
+          const phaseObjectives = objectives.filter(o => o.phase_id === phase.id)
+          const isExpanded = expandedPhases.has(phase.id)
+          const completedCount = phaseObjectives.filter(o => o.status === 'complete').length
+          const phaseProgress = phaseObjectives.length > 0 ? Math.round((completedCount / phaseObjectives.length) * 100) : 0
+
+          return (
+            <div key={phase.id} className="card overflow-hidden">
+              <div className="p-4 bg-tactical-panel border-b border-tactical-border cursor-pointer hover:bg-tactical-hover transition-colors" onClick={() => togglePhase(phase.id)}>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">{isExpanded ? <ChevronDown className="w-5 h-5 text-cyber-cyan" /> : <ChevronRight className="w-5 h-5 text-text-muted" />}<div><div className="flex items-center gap-2"><span className="text-xs text-cyber-cyan font-mono">{phase.code}</span><h3 className="font-semibold">{phase.name}</h3></div><p className="text-xs text-text-muted mt-1">{phaseObjectives.length} objectives • {completedCount} complete • {phaseProgress}%</p></div></div>
+                  <div className="flex items-center gap-2"><div className="w-24 h-2 bg-tactical-bg rounded-full overflow-hidden"><div className="h-full bg-cyber-cyan" style={{ width: `${phaseProgress}%` }} /></div><button onClick={(e) => { e.stopPropagation(); handleDeletePhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button></div>
+                </div>
+              </div>
+
+              {isExpanded && (
+                <div className="p-4 space-y-3">
+                  {phaseObjectives.map((obj) => {
+                    const objTasks = tasks.filter(t => t.objective_id === obj.id)
+                    const isObjExpanded = expandedObjectives.has(obj.id)
+                    const StatusIcon = STATUS_CONFIG[obj.status]?.icon || AlertTriangle
+                    const statusColor = STATUS_CONFIG[obj.status]?.color || 'cyber-amber'
+
+                    return (
+                      <div key={obj.id} className="bg-tactical-bg rounded-lg overflow-hidden">
+                        <div className={`p-3 border-l-4 border-${statusColor} cursor-pointer hover:bg-tactical-hover transition-colors`} onClick={() => toggleObjective(obj.id)}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">{isObjExpanded ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}<StatusIcon className={`w-5 h-5 text-${statusColor}`} /><div><h4 className="font-medium">{obj.name}</h4>{obj.description && <p className="text-xs text-text-muted mt-0.5">{obj.description}</p>}</div></div>
+                            <div className="flex items-center gap-2"><select value={obj.status} onChange={(e) => { e.stopPropagation(); handleUpdateObjectiveStatus(obj.id, e.target.value) }} onClick={(e) => e.stopPropagation()} className="text-xs bg-tactical-panel border border-tactical-border rounded px-2 py-1"><option value="pending">Pending</option><option value="active">Active</option><option value="complete">Complete</option><option value="blocked">Blocked</option></select><button onClick={(e) => { e.stopPropagation(); handleDeleteObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button></div>
+                          </div>
+                        </div>
+
+                        {isObjExpanded && (
+                          <div className="px-3 pb-3 pt-1 ml-6 border-l border-tactical-border">
+                            {objTasks.length === 0 ? <p className="text-xs text-text-muted py-2">No tasks yet</p> : (
+                              <div className="space-y-1">{objTasks.map((task) => (
+                                <div key={task.id} className="flex items-center gap-2 py-1 group">
+                                  <input type="checkbox" checked={task.status === 'complete'} onChange={() => handleUpdateTaskStatus(task.id, task.status === 'complete' ? 'pending' : 'complete')} className="w-4 h-4 rounded border-tactical-border bg-tactical-panel text-cyber-cyan" />
+                                  <span className={`flex-1 text-sm ${task.status === 'complete' ? 'line-through text-text-muted' : 'text-text-secondary'}`}>{task.name}</span>
+                                  {task.week && <span className="text-xs text-cyber-cyan font-mono">[{task.week}]</span>}
+                                  <button onClick={() => handleDeleteTask(task.id)} className="p-1 text-text-muted hover:text-cyber-red opacity-0 group-hover:opacity-100"><X className="w-3 h-3" /></button>
+                                </div>
+                              ))}</div>
+                            )}
+                            {showNewTask === obj.id ? (
+                              <div className="flex items-center gap-2 mt-2"><input type="text" className="input flex-1 text-sm py-1" placeholder="Task name..." value={newTask.name} onChange={(e) => setNewTask({ ...newTask, name: e.target.value })} autoFocus /><input type="text" className="input w-20 text-sm py-1 font-mono" placeholder="Week" value={newTask.week} onChange={(e) => setNewTask({ ...newTask, week: e.target.value })} /><button onClick={() => handleCreateTask(obj.id)} className="p-1 text-cyber-green"><Save className="w-4 h-4" /></button><button onClick={() => { setShowNewTask(null); setNewTask({ name: '', week: '' }) }} className="p-1 text-text-muted"><X className="w-4 h-4" /></button></div>
+                            ) : <button onClick={() => setShowNewTask(obj.id)} className="flex items-center gap-1 text-xs text-text-muted hover:text-cyber-cyan mt-2"><Plus className="w-3 h-3" /> Add task</button>}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+
+                  {showNewObjective === phase.id ? (
+                    <div className="bg-tactical-bg rounded-lg p-3 border border-cyber-cyan"><div className="space-y-2"><input type="text" className="input" placeholder="Objective name..." value={newObjective.name} onChange={(e) => setNewObjective({ ...newObjective, name: e.target.value })} autoFocus /><input type="text" className="input" placeholder="Description (optional)" value={newObjective.description} onChange={(e) => setNewObjective({ ...newObjective, description: e.target.value })} /><select className="input" value={newObjective.status} onChange={(e) => setNewObjective({ ...newObjective, status: e.target.value })}><option value="pending">Pending</option><option value="active">Active</option><option value="complete">Complete</option></select><div className="flex gap-2"><button onClick={() => handleCreateObjective(phase.id)} className="btn-success">Create</button><button onClick={() => { setShowNewObjective(null); setNewObjective({ name: '', description: '', status: 'pending' }) }} className="btn-secondary">Cancel</button></div></div></div>
+                  ) : <button onClick={() => setShowNewObjective(phase.id)} className="flex items-center gap-2 text-sm text-text-muted hover:text-cyber-cyan py-2"><Plus className="w-4 h-4" /> Add objective</button>}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
