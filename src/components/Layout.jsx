@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, Target, BarChart3 } from 'lucide-react'
+import { Menu, X, Target, BarChart3, Map } from 'lucide-react'
 
 export default function Layout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -33,6 +33,13 @@ export default function Layout({ children }) {
                 <span>Dashboard</span>
               </Link>
               <Link 
+                to="/battlemap" 
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/battlemap') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
+              >
+                <Map className="w-4 h-4" />
+                <span>Battle Map</span>
+              </Link>
+              <Link 
                 to="/metrics" 
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/metrics') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
               >
@@ -63,6 +70,14 @@ export default function Layout({ children }) {
               >
                 <Target className="w-4 h-4" />
                 <span>Dashboard</span>
+              </Link>
+              <Link 
+                to="/battlemap" 
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/battlemap') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
+              >
+                <Map className="w-4 h-4" />
+                <span>Battle Map</span>
               </Link>
               <Link 
                 to="/metrics" 
