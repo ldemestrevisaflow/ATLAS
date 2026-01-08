@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Target, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Trash2, Save, X, Pencil, Upload, Download, FileText, File, Image, Paperclip, MessageSquare, Calendar, Users, ListTodo } from 'lucide-react'
+import { ArrowLeft, Plus, Target, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Trash2, Save, X, Pencil, Upload, Download, FileText, File, Image, Paperclip, MessageSquare, Calendar, Users, ListTodo, Map } from 'lucide-react'
 import { getOperation, updateOperation, getPhases, createPhase, updatePhase, deletePhase, getObjectivesByOperation, createObjective, updateObjective, deleteObjective, getTasksByOperation, createTask, updateTask, deleteTask, getOperationStats, getAttachmentsByOperation, uploadAttachment, downloadAttachment, deleteAttachment, getFeedbackByOperation, createFeedback, updateFeedback, deleteFeedback } from '../lib/data'
+import BattleMap from '../components/BattleMap'
 
 const STATUS_CONFIG = {
   complete: { icon: CheckCircle2, color: 'cyber-green', label: 'COMPLETE' },
@@ -338,14 +339,27 @@ export default function OperationView() {
       </div>
 
       {/* Tabs */}
-      <div className="flex gap-2 border-b border-tactical-border">
-        <button onClick={() => setActiveTab('phases')} className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'phases' ? 'text-cyber-cyan border-b-2 border-cyber-cyan' : 'text-text-muted hover:text-text-primary'}`}>
+      <div className="flex gap-1 border-b border-tactical-border overflow-x-auto">
+        <button onClick={() => setActiveTab('phases')} className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === 'phases' ? 'text-cyber-cyan border-b-2 border-cyber-cyan' : 'text-text-muted hover:text-text-primary'}`}>
           <Target className="w-4 h-4 inline mr-2" />Phases & Objectives
         </button>
-        <button onClick={() => setActiveTab('feedback')} className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'feedback' ? 'text-cyber-cyan border-b-2 border-cyber-cyan' : 'text-text-muted hover:text-text-primary'}`}>
+        <button onClick={() => setActiveTab('battlemap')} className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === 'battlemap' ? 'text-cyber-cyan border-b-2 border-cyber-cyan' : 'text-text-muted hover:text-text-primary'}`}>
+          <Map className="w-4 h-4 inline mr-2" />Battle Map
+        </button>
+        <button onClick={() => setActiveTab('feedback')} className={`px-4 py-2 font-medium text-sm transition-colors whitespace-nowrap ${activeTab === 'feedback' ? 'text-cyber-cyan border-b-2 border-cyber-cyan' : 'text-text-muted hover:text-text-primary'}`}>
           <MessageSquare className="w-4 h-4 inline mr-2" />Feedback ({feedbackList.length})
         </button>
       </div>
+
+      {/* Battle Map Tab */}
+      {activeTab === 'battlemap' && (
+        <BattleMap 
+          operation={operation} 
+          phases={phases} 
+          objectives={objectives} 
+          tasks={tasks} 
+        />
+      )}
 
       {/* Phases Tab */}
       {activeTab === 'phases' && (
