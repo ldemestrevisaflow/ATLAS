@@ -57,7 +57,8 @@ export default function Dashboard() {
           <p className="text-text-muted text-sm mt-1">Manage your tactical operations</p>
         </div>
         <Link to="/operation/new" className="btn-primary flex items-center gap-2 w-fit">
-          <Plus className="w-4 h-4" /><span>New Operation</span>
+          <Plus className="w-4 h-4" />
+          <span>New Operation</span>
         </Link>
       </div>
 
@@ -116,7 +117,8 @@ export default function Dashboard() {
           <h2 className="text-xl font-semibold mb-2">No Operations Yet</h2>
           <p className="text-text-muted mb-6">Create your first operation to get started</p>
           <Link to="/operation/new" className="btn-primary inline-flex items-center gap-2">
-            <Plus className="w-4 h-4" /><span>Create Operation</span>
+            <Plus className="w-4 h-4" />
+            <span>Create Operation</span>
           </Link>
         </div>
       ) : (
@@ -144,5 +146,42 @@ export default function Dashboard() {
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-4 text-center">
-                    <div><p className="text-lg font-bold">{opStats.totalObjectives || 0}</p><p className="text-[10px] text-text-muted font-mono">OBJECTIVES</p></div>
-                    <div><p className="text-lg font-bold text-cyber-green">{opStats.completedObjectives || 0}</p><p
+                    <div>
+                      <p className="text-lg font-bold">{opStats.totalObjectives || 0}</p>
+                      <p className="text-[10px] text-text-muted font-mono">OBJECTIVES</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold text-cyber-green">{opStats.completedObjectives || 0}</p>
+                      <p className="text-[10px] text-text-muted font-mono">COMPLETE</p>
+                    </div>
+                    <div>
+                      <p className="text-lg font-bold">{opStats.totalTasks || 0}</p>
+                      <p className="text-[10px] text-text-muted font-mono">TASKS</p>
+                    </div>
+                  </div>
+                </Link>
+                <button 
+                  onClick={(e) => { e.preventDefault(); setDeleteConfirm(op.id) }} 
+                  className="absolute top-4 right-4 p-2 text-text-muted hover:text-cyber-red opacity-0 group-hover:opacity-100 transition-all"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+                {deleteConfirm === op.id && (
+                  <div className="absolute inset-0 bg-tactical-panel/95 rounded-lg flex items-center justify-center p-4">
+                    <div className="text-center">
+                      <p className="mb-4">Delete this operation?</p>
+                      <div className="flex gap-3 justify-center">
+                        <button onClick={() => setDeleteConfirm(null)} className="btn-secondary">Cancel</button>
+                        <button onClick={() => handleDelete(op.id)} className="btn-danger">Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
