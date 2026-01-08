@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { CheckCircle2, Circle, Calendar, Clock, Flag, Filter, Sparkles, Download, ChevronDown, AlertTriangle, Target } from 'lucide-react'
+import { CheckCircle2, Circle, Calendar, Clock, Flag, Filter, Sparkles, Download, ChevronDown, AlertTriangle, Target, FileText, FileSpreadsheet, CalendarDays } from 'lucide-react'
 import { getOperations, getObjectivesByOperation, getTasksByOperation, updateTask } from '../lib/data'
 
 const PRIORITY_CONFIG = {
@@ -44,9 +44,10 @@ export default function Tasks() {
   const [allTasks, setAllTasks] = useState([])
   const [objectives, setObjectives] = useState([])
   const [loading, setLoading] = useState(true)
-  const [filter, setFilter] = useState('all') // all, today, week, overdue
+  const [filter, setFilter] = useState('all')
   const [priorityFilter, setPriorityFilter] = useState('all')
   const [operationFilter, setOperationFilter] = useState('all')
+  const [showExportMenu, setShowExportMenu] = useState(false)
 
   useEffect(() => {
     loadAllTasks()
@@ -103,46 +104,225 @@ export default function Tasks() {
 
   // Filter tasks
   const filteredTasks = allTasks.filter(task => {
-    // Status filter (exclude completed unless showing all)
     if (filter !== 'all' && task.status === 'complete') return false
-    
-    // Time filter
     if (filter === 'today' && !isToday(task.due_date)) return false
     if (filter === 'week' && !isThisWeek(task.due_date)) return false
     if (filter === 'overdue' && !isOverdue(task.due_date)) return false
-    
-    // Priority filter
     if (priorityFilter !== 'all' && task.priority !== priorityFilter) return false
-    
-    // Operation filter
     if (operationFilter !== 'all' && task.operation_id !== operationFilter) return false
-    
     return true
   })
 
-  // Sort: overdue first, then by due date, then by priority
+  // Sort tasks
   const sortedTasks = [...filteredTasks].sort((a, b) => {
-    // Completed tasks at bottom
     if (a.status === 'complete' && b.status !== 'complete') return 1
     if (a.status !== 'complete' && b.status === 'complete') return -1
-    
-    // Overdue first
     const aOverdue = isOverdue(a.due_date)
     const bOverdue = isOverdue(b.due_date)
     if (aOverdue && !bOverdue) return -1
     if (!aOverdue && bOverdue) return 1
-    
-    // Then by due date
-    if (a.due_date && b.due_date) {
-      return new Date(a.due_date) - new Date(b.due_date)
-    }
+    if (a.due_date && b.due_date) return new Date(a.due_date) - new Date(b.due_date)
     if (a.due_date && !b.due_date) return -1
     if (!a.due_date && b.due_date) return 1
-    
-    // Then by priority
     const priorityOrder = { high: 0, medium: 1, low: 2 }
     return (priorityOrder[a.priority] || 1) - (priorityOrder[b.priority] || 1)
   })
+
+  // Export functions
+  const exportToCSV = () => {
+    const headers = ['Task', 'Operation', 'Objective', 'Status', 'Priority', 'Due Date', 'Estimated Minutes']
+    const rows = sortedTasks.map(task => [
+      task.name,
+      task.operationCode || '',
+      getObjectiveName(task.objective_id),
+      task.status,
+      task.priority || 'medium',
+      task.due_date || '',
+      task.estimated_minutes || 30
+    ])
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n')
+
+    const blob = new Blob([csvContent], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `atlas-tasks-${new Date().toISOString().split('T')[0]}.csv`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }
+
+  const exportToICS = () => {
+    const tasksWithDates = sortedTasks.filter(t => t.due_date && t.status !== 'complete')
+    
+    if (tasksWithDates.length === 0) {
+      alert('No tasks with due dates to export. Add due dates to your tasks first!')
+      return
+    }
+
+    const formatICSDate = (dateStr, timeStr) => {
+      const date = new Date(dateStr)
+      if (timeStr) {
+        const [hours, minutes] = timeStr.split(':')
+        date.setHours(parseInt(hours), parseInt(minutes))
+      } else {
+        date.setHours(9, 0)
+      }
+      return date.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+    }
+
+    const events = tasksWithDates.map(task => {
+      const startDate = formatICSDate(task.due_date, task.scheduled_time)
+      const endDate = new Date(new Date(task.due_date).getTime() + (task.estimated_minutes || 30) * 60000)
+      const endDateStr = endDate.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z'
+      const uid = `${task.id}@atlas`
+      
+      return `BEGIN:VEVENT
+UID:${uid}
+DTSTART:${startDate}
+DTEND:${endDateStr}
+SUMMARY:[${task.operationCode}] ${task.name}
+DESCRIPTION:Operation: ${task.operationName}\\nObjective: ${getObjectiveName(task.objective_id)}\\nPriority: ${task.priority || 'medium'}
+STATUS:${task.status === 'complete' ? 'COMPLETED' : 'NEEDS-ACTION'}
+END:VEVENT`
+    }).join('\n')
+
+    const icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//ATLAS//Strategic Command//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+${events}
+END:VCALENDAR`
+
+    const blob = new Blob([icsContent], { type: 'text/calendar' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `atlas-tasks-${new Date().toISOString().split('T')[0]}.ics`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }
+
+  const exportToDocx = () => {
+    const today = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
+    
+    // Build HTML table that Word can import
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>ATLAS Tasks Report</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 40px; }
+    h1 { color: #00d4ff; border-bottom: 2px solid #00d4ff; padding-bottom: 10px; }
+    h2 { color: #333; margin-top: 30px; }
+    .meta { color: #666; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    th { background-color: #0d1117; color: #00d4ff; text-align: left; padding: 12px; border: 1px solid #2a3540; }
+    td { padding: 10px; border: 1px solid #ddd; vertical-align: top; }
+    tr:nth-child(even) { background-color: #f9f9f9; }
+    .priority-high { color: #ff3d5a; font-weight: bold; }
+    .priority-medium { color: #f59e0b; }
+    .priority-low { color: #00ff9d; }
+    .status-complete { text-decoration: line-through; color: #999; }
+    .overdue { color: #ff3d5a; font-weight: bold; }
+  </style>
+</head>
+<body>
+  <h1>ATLAS Tasks Report</h1>
+  <p class="meta">Generated: ${today} | Total Tasks: ${sortedTasks.length}</p>
+  
+  <h2>Task List</h2>
+  <table>
+    <thead>
+      <tr>
+        <th style="width: 30%">Task</th>
+        <th style="width: 15%">Operation</th>
+        <th style="width: 20%">Objective</th>
+        <th style="width: 10%">Priority</th>
+        <th style="width: 12%">Due Date</th>
+        <th style="width: 8%">Time</th>
+        <th style="width: 5%">Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${sortedTasks.map(task => {
+        const priorityClass = `priority-${task.priority || 'medium'}`
+        const statusClass = task.status === 'complete' ? 'status-complete' : ''
+        const overdueClass = isOverdue(task.due_date) && task.status !== 'complete' ? 'overdue' : ''
+        const dueDate = task.due_date ? new Date(task.due_date).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }) : '-'
+        const estTime = task.estimated_minutes ? `${task.estimated_minutes}m` : '30m'
+        
+        return `
+          <tr class="${statusClass}">
+            <td>${task.name}</td>
+            <td>${task.operationCode || '-'}</td>
+            <td>${getObjectiveName(task.objective_id) || '-'}</td>
+            <td class="${priorityClass}">${(task.priority || 'medium').toUpperCase()}</td>
+            <td class="${overdueClass}">${dueDate}</td>
+            <td>${estTime}</td>
+            <td>${task.status === 'complete' ? '✓' : '○'}</td>
+          </tr>
+        `
+      }).join('')}
+    </tbody>
+  </table>
+  
+  <h2>Summary by Operation</h2>
+  <table>
+    <thead>
+      <tr>
+        <th>Operation</th>
+        <th>Total Tasks</th>
+        <th>Completed</th>
+        <th>Pending</th>
+        <th>Overdue</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${operations.map(op => {
+        const opTasks = sortedTasks.filter(t => t.operation_id === op.id)
+        const completed = opTasks.filter(t => t.status === 'complete').length
+        const pending = opTasks.filter(t => t.status !== 'complete').length
+        const overdue = opTasks.filter(t => t.status !== 'complete' && isOverdue(t.due_date)).length
+        return `
+          <tr>
+            <td><strong>${op.code}</strong> - ${op.name}</td>
+            <td>${opTasks.length}</td>
+            <td>${completed}</td>
+            <td>${pending}</td>
+            <td class="${overdue > 0 ? 'overdue' : ''}">${overdue}</td>
+          </tr>
+        `
+      }).join('')}
+    </tbody>
+  </table>
+</body>
+</html>`
+
+    // Create blob and download as .doc (Word can open HTML as doc)
+    const blob = new Blob([htmlContent], { type: 'application/msword' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `atlas-tasks-${new Date().toISOString().split('T')[0]}.doc`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    setShowExportMenu(false)
+  }
 
   // Stats
   const stats = {
@@ -176,10 +356,50 @@ export default function Tasks() {
             <Sparkles className="w-4 h-4" />
             <span>AI Schedule</span>
           </button>
-          <button className="btn-secondary flex items-center gap-2">
-            <Download className="w-4 h-4" />
-            <span>Export</span>
-          </button>
+          <div className="relative">
+            <button 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              className="btn-secondary flex items-center gap-2"
+            >
+              <Download className="w-4 h-4" />
+              <span>Export</span>
+              <ChevronDown className="w-3 h-3" />
+            </button>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-1 w-56 bg-tactical-panel border border-tactical-border rounded-lg shadow-lg z-10">
+                <button 
+                  onClick={exportToCSV}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-tactical-hover transition-colors rounded-t-lg flex items-center gap-3"
+                >
+                  <FileSpreadsheet className="w-4 h-4 text-cyber-green" />
+                  <div>
+                    <p className="font-medium">Export to CSV</p>
+                    <p className="text-xs text-text-muted">Open in Excel</p>
+                  </div>
+                </button>
+                <button 
+                  onClick={exportToDocx}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-tactical-hover transition-colors flex items-center gap-3 border-t border-tactical-border"
+                >
+                  <FileText className="w-4 h-4 text-cyber-cyan" />
+                  <div>
+                    <p className="font-medium">Export to Word</p>
+                    <p className="text-xs text-text-muted">Formatted report</p>
+                  </div>
+                </button>
+                <button 
+                  onClick={exportToICS}
+                  className="w-full px-4 py-3 text-left text-sm hover:bg-tactical-hover transition-colors rounded-b-lg flex items-center gap-3 border-t border-tactical-border"
+                >
+                  <CalendarDays className="w-4 h-4 text-cyber-amber" />
+                  <div>
+                    <p className="font-medium">Export to Outlook</p>
+                    <p className="text-xs text-text-muted">Calendar events (.ics)</p>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
