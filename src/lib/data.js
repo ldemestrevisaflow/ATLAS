@@ -140,6 +140,30 @@ export const createPhase = async (phase) => {
   return newPhase
 }
 
+export const updatePhase = async (id, updates) => {
+  const updated = { ...updates, updated_at: new Date().toISOString() }
+  
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('phases')
+      .update(updated)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  }
+  
+  const phases = getLocal(STORAGE_KEYS.phases)
+  const index = phases.findIndex(p => p.id === id)
+  if (index !== -1) {
+    phases[index] = { ...phases[index], ...updated }
+    setLocal(STORAGE_KEYS.phases, phases)
+    return phases[index]
+  }
+  throw new Error('Phase not found')
+}
+
 export const deletePhase = async (id) => {
   if (isSupabaseConfigured()) {
     const { error } = await supabase.from('phases').delete().eq('id', id)
