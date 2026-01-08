@@ -6,6 +6,7 @@ const STORAGE_KEYS = {
   objectives: 'atlas_objectives',
   tasks: 'atlas_tasks',
   attachments: 'atlas_attachments',
+  feedback: 'atlas_feedback',
 }
 
 const getLocal = (key) => {
@@ -370,19 +371,16 @@ export const uploadAttachment = async (file, operationId, objectiveId, notes = '
   const filePath = `${operationId}/${objectiveId || 'general'}/${Date.now()}-${fileName}`
   
   if (isSupabaseConfigured()) {
-    // Upload file to storage
     const { error: uploadError } = await supabase.storage
       .from('attachments')
       .upload(filePath, file)
     
     if (uploadError) throw uploadError
     
-    // Get existing attachments to determine version
     const existing = await getAttachmentsByObjective(objectiveId)
     const sameNameFiles = existing.filter(a => a.file_name === fileName)
     const version = sameNameFiles.length + 1
     
-    // Create attachment record
     const attachment = {
       id: generateId(),
       operation_id: operationId,
@@ -407,7 +405,6 @@ export const uploadAttachment = async (file, operationId, objectiveId, notes = '
     return data
   }
   
-  // Local storage fallback (limited - just stores metadata)
   const attachment = {
     id: generateId(),
     operation_id: operationId,
@@ -436,7 +433,6 @@ export const downloadAttachment = async (attachment) => {
     
     if (error) throw error
     
-    // Create download link
     const url = URL.createObjectURL(data)
     const a = document.createElement('a')
     a.href = url
@@ -453,14 +449,12 @@ export const downloadAttachment = async (attachment) => {
 
 export const deleteAttachment = async (attachment) => {
   if (isSupabaseConfigured()) {
-    // Delete from storage
     const { error: storageError } = await supabase.storage
       .from('attachments')
       .remove([attachment.file_path])
     
     if (storageError) console.warn('Storage delete error:', storageError)
     
-    // Delete record
     const { error } = await supabase
       .from('attachments')
       .delete()
@@ -471,4 +465,79 @@ export const deleteAttachment = async (attachment) => {
   }
   
   setLocal(STORAGE_KEYS.attachments, getLocal(STORAGE_KEYS.attachments).filter(a => a.id !== attachment.id))
+}
+
+// ============ FEEDBACK ============
+
+export const getFeedbackByOperation = async (operationId) => {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('feedback')
+      .select('*')
+      .eq('operation_id', operationId)
+      .order('meeting_date', { ascending: false })
+    if (error) throw error
+    return data
+  }
+  return getLocal(STORAGE_KEYS.feedback)
+    .filter(f => f.operation_id === operationId)
+    .sort((a, b) => new Date(b.meeting_date) - new Date(a.meeting_date))
+}
+
+export const createFeedback = async (feedback) => {
+  const newFeedback = {
+    id: generateId(),
+    ...feedback,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('feedback')
+      .insert(newFeedback)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  }
+  
+  const feedbackList = getLocal(STORAGE_KEYS.feedback)
+  feedbackList.push(newFeedback)
+  setLocal(STORAGE_KEYS.feedback, feedbackList)
+  return newFeedback
+}
+
+export const updateFeedback = async (id, updates) => {
+  const updated = { ...updates, updated_at: new Date().toISOString() }
+  
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('feedback')
+      .update(updated)
+      .eq('id', id)
+      .select()
+      .single()
+    if (error) throw error
+    return data
+  }
+  
+  const feedbackList = getLocal(STORAGE_KEYS.feedback)
+  const index = feedbackList.findIndex(f => f.id === id)
+  if (index !== -1) {
+    feedbackList[index] = { ...feedbackList[index], ...updated }
+    setLocal(STORAGE_KEYS.feedback, feedbackList)
+    return feedbackList[index]
+  }
+  throw new Error('Feedback not found')
+}
+
+export const deleteFeedback = async (id) => {
+  if (isSupabaseConfigured()) {
+    const { error } = await supabase.from('feedback').delete().eq('id', id)
+    if (error) throw error
+    return
+  }
+  
+  setLocal(STORAGE_KEYS.feedback, getLocal(STORAGE_KEYS.feedback).filter(f => f.id !== id))
 }
