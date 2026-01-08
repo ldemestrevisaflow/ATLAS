@@ -1,18 +1,12 @@
 import { useState, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { CheckCircle2, Circle, Calendar, Clock, Flag, Filter, Sparkles, Download, ChevronDown, AlertTriangle, Target, FileText, FileSpreadsheet, CalendarDays } from 'lucide-react'
+import { CheckCircle2, Circle, Calendar, Clock, Filter, Sparkles, Download, ChevronDown, AlertTriangle, Target, FileText, FileSpreadsheet, CalendarDays } from 'lucide-react'
 import { getOperations, getObjectivesByOperation, getTasksByOperation, updateTask } from '../lib/data'
 
 const PRIORITY_CONFIG = {
   high: { color: 'text-cyber-red', bg: 'bg-cyber-red/20', label: 'High' },
   medium: { color: 'text-cyber-amber', bg: 'bg-cyber-amber/20', label: 'Medium' },
   low: { color: 'text-cyber-green', bg: 'bg-cyber-green/20', label: 'Low' },
-}
-
-const formatDate = (dateStr) => {
-  if (!dateStr) return null
-  const date = new Date(dateStr)
-  return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short' })
 }
 
 const isOverdue = (dateStr) => {
@@ -547,7 +541,7 @@ END:VCALENDAR`
                           type="date"
                           value={task.due_date || ''}
                           onChange={(e) => handleUpdateTask(task.id, { due_date: e.target.value || null })}
-                          className={`bg-transparent border-0 p-0 text-xs ${overdue ? 'text-cyber-red' : today ? 'text-cyber-cyan' : 'text-text-muted'}`}
+                          className={`bg-tactical-panel border border-tactical-border rounded px-2 py-1 text-xs cursor-pointer hover:border-cyber-cyan ${overdue ? 'text-cyber-red' : today ? 'text-cyber-cyan' : 'text-text-muted'}`}
                         />
                         {overdue && <AlertTriangle className="w-3 h-3 text-cyber-red" />}
                       </div>
@@ -558,7 +552,7 @@ END:VCALENDAR`
                         <select
                           value={task.estimated_minutes || 30}
                           onChange={(e) => handleUpdateTask(task.id, { estimated_minutes: parseInt(e.target.value) })}
-                          className="bg-transparent border-0 p-0 text-xs text-text-muted"
+                          className="bg-tactical-panel border border-tactical-border rounded px-2 py-1 text-xs cursor-pointer hover:border-cyber-cyan text-text-muted"
                         >
                           <option value={15}>15m</option>
                           <option value={30}>30m</option>
