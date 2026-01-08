@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Settings, Target, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Trash2, Save, X } from 'lucide-react'
-import { getOperation, updateOperation, getPhases, createPhase, deletePhase, getObjectivesByOperation, createObjective, updateObjective, deleteObjective, getTasksByOperation, createTask, updateTask, deleteTask, getOperationStats } from '../lib/data'
+import { ArrowLeft, Plus, Target, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Trash2, Save, X, Pencil } from 'lucide-react'
+import { getOperation, updateOperation, getPhases, createPhase, updatePhase, deletePhase, getObjectivesByOperation, createObjective, updateObjective, deleteObjective, getTasksByOperation, createTask, updateTask, deleteTask, getOperationStats } from '../lib/data'
 
 const STATUS_CONFIG = {
   complete: { icon: CheckCircle2, color: 'cyber-green', label: 'COMPLETE' },
@@ -27,6 +27,12 @@ export default function OperationView() {
   const [newObjective, setNewObjective] = useState({ name: '', description: '', status: 'pending' })
   const [showNewTask, setShowNewTask] = useState(null)
   const [newTask, setNewTask] = useState({ name: '', week: '' })
+  const [editingOperation, setEditingOperation] = useState(false)
+  const [editOpForm, setEditOpForm] = useState({})
+  const [editingPhase, setEditingPhase] = useState(null)
+  const [editPhaseForm, setEditPhaseForm] = useState({})
+  const [editingObjective, setEditingObjective] = useState(null)
+  const [editObjForm, setEditObjForm] = useState({})
 
   useEffect(() => { loadData() }, [id])
 
@@ -45,6 +51,12 @@ export default function OperationView() {
 
   const refreshStats = async () => { const sts = await getOperationStats(id); setStats(sts) }
 
+  const handleUpdateOperation = async () => {
+    const updated = await updateOperation(id, editOpForm)
+    setOperation(updated)
+    setEditingOperation(false)
+  }
+
   const handleCreatePhase = async () => {
     if (!newPhase.name.trim()) return
     const phase = await createPhase({ operation_id: id, name: newPhase.name, code: newPhase.code || `PHASE-${phases.length + 1}`, order_index: phases.length })
@@ -52,6 +64,12 @@ export default function OperationView() {
     setNewPhase({ name: '', code: '' })
     setShowNewPhase(false)
     setExpandedPhases(new Set([...expandedPhases, phase.id]))
+  }
+
+  const handleUpdatePhase = async (phaseId) => {
+    const updated = await updatePhase(phaseId, editPhaseForm)
+    setPhases(phases.map(p => p.id === phaseId ? updated : p))
+    setEditingPhase(null)
   }
 
   const handleDeletePhase = async (phaseId) => {
@@ -67,6 +85,13 @@ export default function OperationView() {
     setObjectives([...objectives, obj])
     setNewObjective({ name: '', description: '', status: 'pending' })
     setShowNewObjective(null)
+    refreshStats()
+  }
+
+  const handleUpdateObjective = async (objId) => {
+    const updated = await updateObjective(objId, editObjForm)
+    setObjectives(objectives.map(o => o.id === objId ? updated : o))
+    setEditingObjective(null)
     refreshStats()
   }
 
@@ -114,10 +139,33 @@ export default function OperationView() {
     <div className="space-y-6">
       <div className="flex items-start gap-4">
         <button onClick={() => navigate('/')} className="p-2 text-text-muted hover:text-text-primary hover:bg-tactical-hover rounded transition-all mt-1"><ArrowLeft className="w-5 h-5" /></button>
-        <div>
-          <div className="flex items-center gap-3"><span className={`px-2 py-1 rounded text-xs font-mono font-medium status-${operation.status}`}>{operation.status?.toUpperCase()}</span><span className="text-xs text-text-muted font-mono">{operation.code}</span></div>
-          <h1 className="text-2xl font-bold mt-2">{operation.name}</h1>
-          {operation.description && <p className="text-text-secondary mt-1">{operation.description}</p>}
+        <div className="flex-1">
+          {editingOperation ? (
+            <div className="space-y-3 card p-4">
+              <input type="text" className="input text-xl font-bold" value={editOpForm.name || ''} onChange={(e) => setEditOpForm({ ...editOpForm, name: e.target.value })} placeholder="Operation name" />
+              <input type="text" className="input font-mono" value={editOpForm.code || ''} onChange={(e) => setEditOpForm({ ...editOpForm, code: e.target.value.toUpperCase() })} placeholder="Code" />
+              <textarea className="input" value={editOpForm.description || ''} onChange={(e) => setEditOpForm({ ...editOpForm, description: e.target.value })} placeholder="Description" />
+              <select className="input" value={editOpForm.status || 'active'} onChange={(e) => setEditOpForm({ ...editOpForm, status: e.target.value })}>
+                <option value="planning">Planning</option>
+                <option value="active">Active</option>
+                <option value="complete">Complete</option>
+              </select>
+              <div className="flex gap-2">
+                <button onClick={handleUpdateOperation} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
+                <button onClick={() => setEditingOperation(false)} className="btn-secondary">Cancel</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center gap-3">
+                <span className={`px-2 py-1 rounded text-xs font-mono font-medium status-${operation.status}`}>{operation.status?.toUpperCase()}</span>
+                <span className="text-xs text-text-muted font-mono">{operation.code}</span>
+                <button onClick={() => { setEditOpForm(operation); setEditingOperation(true) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-4 h-4" /></button>
+              </div>
+              <h1 className="text-2xl font-bold mt-2">{operation.name}</h1>
+              {operation.description && <p className="text-text-secondary mt-1">{operation.description}</p>}
+            </>
+          )}
         </div>
       </div>
 
@@ -152,14 +200,38 @@ export default function OperationView() {
 
           return (
             <div key={phase.id} className="card overflow-hidden">
-              <div className="p-4 bg-tactical-panel border-b border-tactical-border cursor-pointer hover:bg-tactical-hover transition-colors" onClick={() => togglePhase(phase.id)}>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">{isExpanded ? <ChevronDown className="w-5 h-5 text-cyber-cyan" /> : <ChevronRight className="w-5 h-5 text-text-muted" />}<div><div className="flex items-center gap-2"><span className="text-xs text-cyber-cyan font-mono">{phase.code}</span><h3 className="font-semibold">{phase.name}</h3></div><p className="text-xs text-text-muted mt-1">{phaseObjectives.length} objectives • {completedCount} complete • {phaseProgress}%</p></div></div>
-                  <div className="flex items-center gap-2"><div className="w-24 h-2 bg-tactical-bg rounded-full overflow-hidden"><div className="h-full bg-cyber-cyan" style={{ width: `${phaseProgress}%` }} /></div><button onClick={(e) => { e.stopPropagation(); handleDeletePhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button></div>
-                </div>
+              <div className="p-4 bg-tactical-panel border-b border-tactical-border">
+                {editingPhase === phase.id ? (
+                  <div className="space-y-3">
+                    <input type="text" className="input" value={editPhaseForm.name || ''} onChange={(e) => setEditPhaseForm({ ...editPhaseForm, name: e.target.value })} placeholder="Phase name" autoFocus />
+                    <input type="text" className="input font-mono" value={editPhaseForm.code || ''} onChange={(e) => setEditPhaseForm({ ...editPhaseForm, code: e.target.value.toUpperCase() })} placeholder="Code" />
+                    <div className="flex gap-2">
+                      <button onClick={() => handleUpdatePhase(phase.id)} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
+                      <button onClick={() => setEditingPhase(null)} className="btn-secondary">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-center justify-between cursor-pointer hover:bg-tactical-hover transition-colors -m-4 p-4" onClick={() => togglePhase(phase.id)}>
+                    <div className="flex items-center gap-3">
+                      {isExpanded ? <ChevronDown className="w-5 h-5 text-cyber-cyan" /> : <ChevronRight className="w-5 h-5 text-text-muted" />}
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-cyber-cyan font-mono">{phase.code}</span>
+                          <h3 className="font-semibold">{phase.name}</h3>
+                          <button onClick={(e) => { e.stopPropagation(); setEditPhaseForm(phase); setEditingPhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-3 h-3" /></button>
+                        </div>
+                        <p className="text-xs text-text-muted mt-1">{phaseObjectives.length} objectives • {completedCount} complete • {phaseProgress}%</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-24 h-2 bg-tactical-bg rounded-full overflow-hidden"><div className="h-full bg-cyber-cyan" style={{ width: `${phaseProgress}%` }} /></div>
+                      <button onClick={(e) => { e.stopPropagation(); handleDeletePhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {isExpanded && (
+              {isExpanded && !editingPhase && (
                 <div className="p-4 space-y-3">
                   {phaseObjectives.map((obj) => {
                     const objTasks = tasks.filter(t => t.objective_id === obj.id)
@@ -169,14 +241,49 @@ export default function OperationView() {
 
                     return (
                       <div key={obj.id} className="bg-tactical-bg rounded-lg overflow-hidden">
-                        <div className={`p-3 border-l-4 border-${statusColor} cursor-pointer hover:bg-tactical-hover transition-colors`} onClick={() => toggleObjective(obj.id)}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">{isObjExpanded ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}<StatusIcon className={`w-5 h-5 text-${statusColor}`} /><div><h4 className="font-medium">{obj.name}</h4>{obj.description && <p className="text-xs text-text-muted mt-0.5">{obj.description}</p>}</div></div>
-                            <div className="flex items-center gap-2"><select value={obj.status} onChange={(e) => { e.stopPropagation(); handleUpdateObjectiveStatus(obj.id, e.target.value) }} onClick={(e) => e.stopPropagation()} className="text-xs bg-tactical-panel border border-tactical-border rounded px-2 py-1"><option value="pending">Pending</option><option value="active">Active</option><option value="complete">Complete</option><option value="blocked">Blocked</option></select><button onClick={(e) => { e.stopPropagation(); handleDeleteObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button></div>
+                        {editingObjective === obj.id ? (
+                          <div className="p-3 space-y-2">
+                            <input type="text" className="input" value={editObjForm.name || ''} onChange={(e) => setEditObjForm({ ...editObjForm, name: e.target.value })} placeholder="Objective name" autoFocus />
+                            <input type="text" className="input" value={editObjForm.description || ''} onChange={(e) => setEditObjForm({ ...editObjForm, description: e.target.value })} placeholder="Description" />
+                            <select className="input" value={editObjForm.status || 'pending'} onChange={(e) => setEditObjForm({ ...editObjForm, status: e.target.value })}>
+                              <option value="pending">Pending</option>
+                              <option value="active">Active</option>
+                              <option value="complete">Complete</option>
+                              <option value="blocked">Blocked</option>
+                            </select>
+                            <div className="flex gap-2">
+                              <button onClick={() => handleUpdateObjective(obj.id)} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
+                              <button onClick={() => setEditingObjective(null)} className="btn-secondary">Cancel</button>
+                            </div>
                           </div>
-                        </div>
+                        ) : (
+                          <div className={`p-3 border-l-4 border-${statusColor} cursor-pointer hover:bg-tactical-hover transition-colors`} onClick={() => toggleObjective(obj.id)}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                {isObjExpanded ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}
+                                <StatusIcon className={`w-5 h-5 text-${statusColor}`} />
+                                <div>
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{obj.name}</h4>
+                                    <button onClick={(e) => { e.stopPropagation(); setEditObjForm(obj); setEditingObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-3 h-3" /></button>
+                                  </div>
+                                  {obj.description && <p className="text-xs text-text-muted mt-0.5">{obj.description}</p>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <select value={obj.status} onChange={(e) => { e.stopPropagation(); handleUpdateObjectiveStatus(obj.id, e.target.value) }} onClick={(e) => e.stopPropagation()} className="text-xs bg-tactical-panel border border-tactical-border rounded px-2 py-1">
+                                  <option value="pending">Pending</option>
+                                  <option value="active">Active</option>
+                                  <option value="complete">Complete</option>
+                                  <option value="blocked">Blocked</option>
+                                </select>
+                                <button onClick={(e) => { e.stopPropagation(); handleDeleteObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
 
-                        {isObjExpanded && (
+                        {isObjExpanded && editingObjective !== obj.id && (
                           <div className="px-3 pb-3 pt-1 ml-6 border-l border-tactical-border">
                             {objTasks.length === 0 ? <p className="text-xs text-text-muted py-2">No tasks yet</p> : (
                               <div className="space-y-1">{objTasks.map((task) => (
@@ -189,7 +296,12 @@ export default function OperationView() {
                               ))}</div>
                             )}
                             {showNewTask === obj.id ? (
-                              <div className="flex items-center gap-2 mt-2"><input type="text" className="input flex-1 text-sm py-1" placeholder="Task name..." value={newTask.name} onChange={(e) => setNewTask({ ...newTask, name: e.target.value })} autoFocus /><input type="text" className="input w-20 text-sm py-1 font-mono" placeholder="Week" value={newTask.week} onChange={(e) => setNewTask({ ...newTask, week: e.target.value })} /><button onClick={() => handleCreateTask(obj.id)} className="p-1 text-cyber-green"><Save className="w-4 h-4" /></button><button onClick={() => { setShowNewTask(null); setNewTask({ name: '', week: '' }) }} className="p-1 text-text-muted"><X className="w-4 h-4" /></button></div>
+                              <div className="flex items-center gap-2 mt-2">
+                                <input type="text" className="input flex-1 text-sm py-1" placeholder="Task name..." value={newTask.name} onChange={(e) => setNewTask({ ...newTask, name: e.target.value })} autoFocus />
+                                <input type="text" className="input w-20 text-sm py-1 font-mono" placeholder="Week" value={newTask.week} onChange={(e) => setNewTask({ ...newTask, week: e.target.value })} />
+                                <button onClick={() => handleCreateTask(obj.id)} className="p-1 text-cyber-green"><Save className="w-4 h-4" /></button>
+                                <button onClick={() => { setShowNewTask(null); setNewTask({ name: '', week: '' }) }} className="p-1 text-text-muted"><X className="w-4 h-4" /></button>
+                              </div>
                             ) : <button onClick={() => setShowNewTask(obj.id)} className="flex items-center gap-1 text-xs text-text-muted hover:text-cyber-cyan mt-2"><Plus className="w-3 h-3" /> Add task</button>}
                           </div>
                         )}
@@ -198,7 +310,21 @@ export default function OperationView() {
                   })}
 
                   {showNewObjective === phase.id ? (
-                    <div className="bg-tactical-bg rounded-lg p-3 border border-cyber-cyan"><div className="space-y-2"><input type="text" className="input" placeholder="Objective name..." value={newObjective.name} onChange={(e) => setNewObjective({ ...newObjective, name: e.target.value })} autoFocus /><input type="text" className="input" placeholder="Description (optional)" value={newObjective.description} onChange={(e) => setNewObjective({ ...newObjective, description: e.target.value })} /><select className="input" value={newObjective.status} onChange={(e) => setNewObjective({ ...newObjective, status: e.target.value })}><option value="pending">Pending</option><option value="active">Active</option><option value="complete">Complete</option></select><div className="flex gap-2"><button onClick={() => handleCreateObjective(phase.id)} className="btn-success">Create</button><button onClick={() => { setShowNewObjective(null); setNewObjective({ name: '', description: '', status: 'pending' }) }} className="btn-secondary">Cancel</button></div></div></div>
+                    <div className="bg-tactical-bg rounded-lg p-3 border border-cyber-cyan">
+                      <div className="space-y-2">
+                        <input type="text" className="input" placeholder="Objective name..." value={newObjective.name} onChange={(e) => setNewObjective({ ...newObjective, name: e.target.value })} autoFocus />
+                        <input type="text" className="input" placeholder="Description (optional)" value={newObjective.description} onChange={(e) => setNewObjective({ ...newObjective, description: e.target.value })} />
+                        <select className="input" value={newObjective.status} onChange={(e) => setNewObjective({ ...newObjective, status: e.target.value })}>
+                          <option value="pending">Pending</option>
+                          <option value="active">Active</option>
+                          <option value="complete">Complete</option>
+                        </select>
+                        <div className="flex gap-2">
+                          <button onClick={() => handleCreateObjective(phase.id)} className="btn-success">Create</button>
+                          <button onClick={() => { setShowNewObjective(null); setNewObjective({ name: '', description: '', status: 'pending' }) }} className="btn-secondary">Cancel</button>
+                        </div>
+                      </div>
+                    </div>
                   ) : <button onClick={() => setShowNewObjective(phase.id)} className="flex items-center gap-2 text-sm text-text-muted hover:text-cyber-cyan py-2"><Plus className="w-4 h-4" /> Add objective</button>}
                 </div>
               )}
