@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate, Link } from 'react-router-dom'
-import { ArrowLeft, Plus, Target, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Trash2, Save, X, Pencil, Upload, Download, FileText, File, Image, Paperclip } from 'lucide-react'
-import { getOperation, updateOperation, getPhases, createPhase, updatePhase, deletePhase, getObjectivesByOperation, createObjective, updateObjective, deleteObjective, getTasksByOperation, createTask, updateTask, deleteTask, getOperationStats, getAttachmentsByOperation, uploadAttachment, downloadAttachment, deleteAttachment } from '../lib/data'
+import { ArrowLeft, Plus, Target, CheckCircle2, Clock, AlertTriangle, XCircle, ChevronDown, ChevronRight, Trash2, Save, X, Pencil, Upload, Download, FileText, File, Image, Paperclip, MessageSquare, Calendar, Users, ListTodo } from 'lucide-react'
+import { getOperation, updateOperation, getPhases, createPhase, updatePhase, deletePhase, getObjectivesByOperation, createObjective, updateObjective, deleteObjective, getTasksByOperation, createTask, updateTask, deleteTask, getOperationStats, getAttachmentsByOperation, uploadAttachment, downloadAttachment, deleteAttachment, getFeedbackByOperation, createFeedback, updateFeedback, deleteFeedback } from '../lib/data'
 
 const STATUS_CONFIG = {
   complete: { icon: CheckCircle2, color: 'cyber-green', label: 'COMPLETE' },
@@ -23,6 +23,12 @@ const formatFileSize = (bytes) => {
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB'
 }
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' })
+}
+
 export default function OperationView() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -32,24 +38,30 @@ export default function OperationView() {
   const [objectives, setObjectives] = useState([])
   const [tasks, setTasks] = useState([])
   const [attachments, setAttachments] = useState([])
+  const [feedbackList, setFeedbackList] = useState([])
   const [stats, setStats] = useState({})
   const [loading, setLoading] = useState(true)
+  const [activeTab, setActiveTab] = useState('phases')
   const [expandedPhases, setExpandedPhases] = useState(new Set())
   const [expandedObjectives, setExpandedObjectives] = useState(new Set())
+  const [expandedFeedback, setExpandedFeedback] = useState(new Set())
   const [showNewPhase, setShowNewPhase] = useState(false)
   const [newPhase, setNewPhase] = useState({ name: '', code: '' })
   const [showNewObjective, setShowNewObjective] = useState(null)
   const [newObjective, setNewObjective] = useState({ name: '', description: '', status: 'pending' })
   const [showNewTask, setShowNewTask] = useState(null)
   const [newTask, setNewTask] = useState({ name: '', week: '' })
+  const [showNewFeedback, setShowNewFeedback] = useState(false)
+  const [newFeedback, setNewFeedback] = useState({ title: '', meeting_date: new Date().toISOString().split('T')[0], attendees: '', notes: '', action_items: '', objective_id: '' })
   const [editingOperation, setEditingOperation] = useState(false)
   const [editOpForm, setEditOpForm] = useState({})
   const [editingPhase, setEditingPhase] = useState(null)
   const [editPhaseForm, setEditPhaseForm] = useState({})
   const [editingObjective, setEditingObjective] = useState(null)
   const [editObjForm, setEditObjForm] = useState({})
+  const [editingFeedback, setEditingFeedback] = useState(null)
+  const [editFeedbackForm, setEditFeedbackForm] = useState({})
   const [uploadingFor, setUploadingFor] = useState(null)
-  const [uploadNotes, setUploadNotes] = useState('')
   const [uploading, setUploading] = useState(false)
 
   useEffect(() => { loadData() }, [id])
@@ -57,13 +69,14 @@ export default function OperationView() {
   const loadData = async () => {
     try {
       setLoading(true)
-      const [op, phs, objs, tsks, sts, atts] = await Promise.all([
+      const [op, phs, objs, tsks, sts, atts, fb] = await Promise.all([
         getOperation(id), 
         getPhases(id), 
         getObjectivesByOperation(id), 
         getTasksByOperation(id), 
         getOperationStats(id),
-        getAttachmentsByOperation(id)
+        getAttachmentsByOperation(id),
+        getFeedbackByOperation(id)
       ])
       setOperation(op)
       setPhases(phs)
@@ -71,6 +84,7 @@ export default function OperationView() {
       setTasks(tsks)
       setStats(sts)
       setAttachments(atts || [])
+      setFeedbackList(fb || [])
       if (phs.length > 0) setExpandedPhases(new Set([phs[0].id]))
     } catch (error) { console.error('Failed to load:', error) } finally { setLoading(false) }
   }
@@ -162,10 +176,9 @@ export default function OperationView() {
     
     try {
       setUploading(true)
-      const attachment = await uploadAttachment(file, id, uploadingFor, uploadNotes)
+      const attachment = await uploadAttachment(file, id, uploadingFor, '')
       setAttachments([attachment, ...attachments])
       setUploadingFor(null)
-      setUploadNotes('')
       if (fileInputRef.current) fileInputRef.current.value = ''
     } catch (error) {
       console.error('Upload failed:', error)
@@ -195,17 +208,87 @@ export default function OperationView() {
     }
   }
 
+  const handleCreateFeedback = async () => {
+    if (!newFeedback.title.trim()) return
+    try {
+      const fb = await createFeedback({ 
+        operation_id: id, 
+        objective_id: newFeedback.objective_id || null,
+        title: newFeedback.title,
+        meeting_date: newFeedback.meeting_date,
+        attendees: newFeedback.attendees,
+        notes: newFeedback.notes,
+        action_items: newFeedback.action_items
+      })
+      setFeedbackList([fb, ...feedbackList])
+      setNewFeedback({ title: '', meeting_date: new Date().toISOString().split('T')[0], attendees: '', notes: '', action_items: '', objective_id: '' })
+      setShowNewFeedback(false)
+      setExpandedFeedback(new Set([...expandedFeedback, fb.id]))
+    } catch (error) {
+      console.error('Create feedback failed:', error)
+      alert('Failed to create feedback: ' + error.message)
+    }
+  }
+
+  const handleUpdateFeedback = async (fbId) => {
+    try {
+      const updated = await updateFeedback(fbId, editFeedbackForm)
+      setFeedbackList(feedbackList.map(f => f.id === fbId ? updated : f))
+      setEditingFeedback(null)
+    } catch (error) {
+      console.error('Update feedback failed:', error)
+      alert('Failed to update feedback: ' + error.message)
+    }
+  }
+
+  const handleDeleteFeedback = async (fbId) => {
+    if (!confirm('Delete this feedback?')) return
+    try {
+      await deleteFeedback(fbId)
+      setFeedbackList(feedbackList.filter(f => f.id !== fbId))
+    } catch (error) {
+      console.error('Delete feedback failed:', error)
+      alert('Failed to delete feedback: ' + error.message)
+    }
+  }
+
+  const handleCreateTaskFromFeedback = async (feedback, actionItem) => {
+    if (!actionItem.trim()) return
+    const objectiveId = feedback.objective_id || objectives[0]?.id
+    if (!objectiveId) {
+      alert('Please create an objective first')
+      return
+    }
+    try {
+      const task = await createTask({ 
+        operation_id: id, 
+        objective_id: objectiveId, 
+        name: actionItem.trim(), 
+        week: '', 
+        status: 'pending', 
+        order_index: tasks.filter(t => t.objective_id === objectiveId).length 
+      })
+      setTasks([...tasks, task])
+      refreshStats()
+      alert('Task created!')
+    } catch (error) {
+      console.error('Create task failed:', error)
+      alert('Failed to create task: ' + error.message)
+    }
+  }
+
   const togglePhase = (phaseId) => { const n = new Set(expandedPhases); n.has(phaseId) ? n.delete(phaseId) : n.add(phaseId); setExpandedPhases(n) }
   const toggleObjective = (objId) => { const n = new Set(expandedObjectives); n.has(objId) ? n.delete(objId) : n.add(objId); setExpandedObjectives(n) }
+  const toggleFeedback = (fbId) => { const n = new Set(expandedFeedback); n.has(fbId) ? n.delete(fbId) : n.add(fbId); setExpandedFeedback(n) }
 
   const getObjectiveAttachments = (objId) => attachments.filter(a => a.objective_id === objId)
+  const getObjectiveName = (objId) => objectives.find(o => o.id === objId)?.name || 'General'
 
   if (loading) return <div className="flex items-center justify-center min-h-[400px]"><div className="text-center"><div className="w-12 h-12 border-2 border-cyber-cyan border-t-transparent rounded-full animate-spin mx-auto mb-4"></div><p className="text-text-muted font-mono text-sm">LOADING...</p></div></div>
   if (!operation) return <div className="text-center py-12"><p className="text-text-muted">Operation not found</p><Link to="/" className="btn-primary mt-4 inline-block">Back to Dashboard</Link></div>
 
   return (
     <div className="space-y-6">
-      {/* Hidden file input */}
       <input type="file" ref={fileInputRef} onChange={handleFileUpload} className="hidden" />
 
       <div className="flex items-start gap-4">
@@ -254,204 +337,341 @@ export default function OperationView() {
         <div className="flex items-center justify-between text-xs text-text-muted mt-2 font-mono"><span>{stats.completedObjectives} / {stats.totalObjectives} objectives</span><span>{stats.completedTasks} / {stats.totalTasks} tasks</span></div>
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Phases & Objectives</h2><button onClick={() => setShowNewPhase(true)} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /><span className="hidden sm:inline">Add Phase</span></button></div>
+      {/* Tabs */}
+      <div className="flex gap-2 border-b border-tactical-border">
+        <button onClick={() => setActiveTab('phases')} className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'phases' ? 'text-cyber-cyan border-b-2 border-cyber-cyan' : 'text-text-muted hover:text-text-primary'}`}>
+          <Target className="w-4 h-4 inline mr-2" />Phases & Objectives
+        </button>
+        <button onClick={() => setActiveTab('feedback')} className={`px-4 py-2 font-medium text-sm transition-colors ${activeTab === 'feedback' ? 'text-cyber-cyan border-b-2 border-cyber-cyan' : 'text-text-muted hover:text-text-primary'}`}>
+          <MessageSquare className="w-4 h-4 inline mr-2" />Feedback ({feedbackList.length})
+        </button>
+      </div>
 
-        {showNewPhase && (
-          <div className="card p-4 border-cyber-cyan"><h3 className="font-medium mb-3">New Phase</h3><div className="space-y-3"><input type="text" className="input" placeholder="Phase name..." value={newPhase.name} onChange={(e) => setNewPhase({ ...newPhase, name: e.target.value })} autoFocus /><input type="text" className="input font-mono" placeholder="Code (e.g., ALPHA)" value={newPhase.code} onChange={(e) => setNewPhase({ ...newPhase, code: e.target.value.toUpperCase() })} /><div className="flex gap-2"><button onClick={handleCreatePhase} className="btn-success">Create</button><button onClick={() => setShowNewPhase(false)} className="btn-secondary">Cancel</button></div></div></div>
-        )}
+      {/* Phases Tab */}
+      {activeTab === 'phases' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between"><h2 className="text-lg font-semibold">Phases & Objectives</h2><button onClick={() => setShowNewPhase(true)} className="btn-primary flex items-center gap-2"><Plus className="w-4 h-4" /><span className="hidden sm:inline">Add Phase</span></button></div>
 
-        {phases.length === 0 && !showNewPhase ? (
-          <div className="card p-8 text-center"><Target className="w-12 h-12 text-text-muted mx-auto mb-3" /><p className="text-text-muted">No phases yet. Add a phase to get started.</p></div>
-        ) : phases.map((phase) => {
-          const phaseObjectives = objectives.filter(o => o.phase_id === phase.id)
-          const isExpanded = expandedPhases.has(phase.id)
-          const completedCount = phaseObjectives.filter(o => o.status === 'complete').length
-          const phaseProgress = phaseObjectives.length > 0 ? Math.round((completedCount / phaseObjectives.length) * 100) : 0
+          {showNewPhase && (
+            <div className="card p-4 border-cyber-cyan"><h3 className="font-medium mb-3">New Phase</h3><div className="space-y-3"><input type="text" className="input" placeholder="Phase name..." value={newPhase.name} onChange={(e) => setNewPhase({ ...newPhase, name: e.target.value })} autoFocus /><input type="text" className="input font-mono" placeholder="Code (e.g., ALPHA)" value={newPhase.code} onChange={(e) => setNewPhase({ ...newPhase, code: e.target.value.toUpperCase() })} /><div className="flex gap-2"><button onClick={handleCreatePhase} className="btn-success">Create</button><button onClick={() => setShowNewPhase(false)} className="btn-secondary">Cancel</button></div></div></div>
+          )}
 
-          return (
-            <div key={phase.id} className="card overflow-hidden">
-              <div className="p-4 bg-tactical-panel border-b border-tactical-border">
-                {editingPhase === phase.id ? (
-                  <div className="space-y-3">
-                    <input type="text" className="input" value={editPhaseForm.name || ''} onChange={(e) => setEditPhaseForm({ ...editPhaseForm, name: e.target.value })} placeholder="Phase name" autoFocus />
-                    <input type="text" className="input font-mono" value={editPhaseForm.code || ''} onChange={(e) => setEditPhaseForm({ ...editPhaseForm, code: e.target.value.toUpperCase() })} placeholder="Code" />
-                    <div className="flex gap-2">
-                      <button onClick={() => handleUpdatePhase(phase.id)} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
-                      <button onClick={() => setEditingPhase(null)} className="btn-secondary">Cancel</button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex items-center justify-between cursor-pointer hover:bg-tactical-hover transition-colors -m-4 p-4" onClick={() => togglePhase(phase.id)}>
-                    <div className="flex items-center gap-3">
-                      {isExpanded ? <ChevronDown className="w-5 h-5 text-cyber-cyan" /> : <ChevronRight className="w-5 h-5 text-text-muted" />}
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-cyber-cyan font-mono">{phase.code}</span>
-                          <h3 className="font-semibold">{phase.name}</h3>
-                          <button onClick={(e) => { e.stopPropagation(); setEditPhaseForm(phase); setEditingPhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-3 h-3" /></button>
-                        </div>
-                        <p className="text-xs text-text-muted mt-1">{phaseObjectives.length} objectives • {completedCount} complete • {phaseProgress}%</p>
+          {phases.length === 0 && !showNewPhase ? (
+            <div className="card p-8 text-center"><Target className="w-12 h-12 text-text-muted mx-auto mb-3" /><p className="text-text-muted">No phases yet. Add a phase to get started.</p></div>
+          ) : phases.map((phase) => {
+            const phaseObjectives = objectives.filter(o => o.phase_id === phase.id)
+            const isExpanded = expandedPhases.has(phase.id)
+            const completedCount = phaseObjectives.filter(o => o.status === 'complete').length
+            const phaseProgress = phaseObjectives.length > 0 ? Math.round((completedCount / phaseObjectives.length) * 100) : 0
+
+            return (
+              <div key={phase.id} className="card overflow-hidden">
+                <div className="p-4 bg-tactical-panel border-b border-tactical-border">
+                  {editingPhase === phase.id ? (
+                    <div className="space-y-3">
+                      <input type="text" className="input" value={editPhaseForm.name || ''} onChange={(e) => setEditPhaseForm({ ...editPhaseForm, name: e.target.value })} placeholder="Phase name" autoFocus />
+                      <input type="text" className="input font-mono" value={editPhaseForm.code || ''} onChange={(e) => setEditPhaseForm({ ...editPhaseForm, code: e.target.value.toUpperCase() })} placeholder="Code" />
+                      <div className="flex gap-2">
+                        <button onClick={() => handleUpdatePhase(phase.id)} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
+                        <button onClick={() => setEditingPhase(null)} className="btn-secondary">Cancel</button>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <div className="w-24 h-2 bg-tactical-bg rounded-full overflow-hidden"><div className="h-full bg-cyber-cyan" style={{ width: `${phaseProgress}%` }} /></div>
-                      <button onClick={(e) => { e.stopPropagation(); handleDeletePhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button>
+                  ) : (
+                    <div className="flex items-center justify-between cursor-pointer hover:bg-tactical-hover transition-colors -m-4 p-4" onClick={() => togglePhase(phase.id)}>
+                      <div className="flex items-center gap-3">
+                        {isExpanded ? <ChevronDown className="w-5 h-5 text-cyber-cyan" /> : <ChevronRight className="w-5 h-5 text-text-muted" />}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-cyber-cyan font-mono">{phase.code}</span>
+                            <h3 className="font-semibold">{phase.name}</h3>
+                            <button onClick={(e) => { e.stopPropagation(); setEditPhaseForm(phase); setEditingPhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-3 h-3" /></button>
+                          </div>
+                          <p className="text-xs text-text-muted mt-1">{phaseObjectives.length} objectives • {completedCount} complete • {phaseProgress}%</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-2 bg-tactical-bg rounded-full overflow-hidden"><div className="h-full bg-cyber-cyan" style={{ width: `${phaseProgress}%` }} /></div>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeletePhase(phase.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button>
+                      </div>
                     </div>
+                  )}
+                </div>
+
+                {isExpanded && !editingPhase && (
+                  <div className="p-4 space-y-3">
+                    {phaseObjectives.map((obj) => {
+                      const objTasks = tasks.filter(t => t.objective_id === obj.id)
+                      const objAttachments = getObjectiveAttachments(obj.id)
+                      const isObjExpanded = expandedObjectives.has(obj.id)
+                      const StatusIcon = STATUS_CONFIG[obj.status]?.icon || AlertTriangle
+                      const statusColor = STATUS_CONFIG[obj.status]?.color || 'cyber-amber'
+
+                      return (
+                        <div key={obj.id} className="bg-tactical-bg rounded-lg overflow-hidden">
+                          {editingObjective === obj.id ? (
+                            <div className="p-3 space-y-2">
+                              <input type="text" className="input" value={editObjForm.name || ''} onChange={(e) => setEditObjForm({ ...editObjForm, name: e.target.value })} placeholder="Objective name" autoFocus />
+                              <input type="text" className="input" value={editObjForm.description || ''} onChange={(e) => setEditObjForm({ ...editObjForm, description: e.target.value })} placeholder="Description" />
+                              <select className="input" value={editObjForm.status || 'pending'} onChange={(e) => setEditObjForm({ ...editObjForm, status: e.target.value })}>
+                                <option value="pending">Pending</option>
+                                <option value="active">Active</option>
+                                <option value="complete">Complete</option>
+                                <option value="blocked">Blocked</option>
+                              </select>
+                              <div className="flex gap-2">
+                                <button onClick={() => handleUpdateObjective(obj.id)} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
+                                <button onClick={() => setEditingObjective(null)} className="btn-secondary">Cancel</button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className={`p-3 border-l-4 border-${statusColor} cursor-pointer hover:bg-tactical-hover transition-colors`} onClick={() => toggleObjective(obj.id)}>
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  {isObjExpanded ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}
+                                  <StatusIcon className={`w-5 h-5 text-${statusColor}`} />
+                                  <div>
+                                    <div className="flex items-center gap-2">
+                                      <h4 className="font-medium">{obj.name}</h4>
+                                      <button onClick={(e) => { e.stopPropagation(); setEditObjForm(obj); setEditingObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-3 h-3" /></button>
+                                      {objAttachments.length > 0 && (
+                                        <span className="flex items-center gap-1 text-xs text-text-muted"><Paperclip className="w-3 h-3" />{objAttachments.length}</span>
+                                      )}
+                                    </div>
+                                    {obj.description && <p className="text-xs text-text-muted mt-0.5">{obj.description}</p>}
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <select value={obj.status} onChange={(e) => { e.stopPropagation(); handleUpdateObjectiveStatus(obj.id, e.target.value) }} onClick={(e) => e.stopPropagation()} className="text-xs bg-tactical-panel border border-tactical-border rounded px-2 py-1">
+                                    <option value="pending">Pending</option>
+                                    <option value="active">Active</option>
+                                    <option value="complete">Complete</option>
+                                    <option value="blocked">Blocked</option>
+                                  </select>
+                                  <button onClick={(e) => { e.stopPropagation(); handleDeleteObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+
+                          {isObjExpanded && editingObjective !== obj.id && (
+                            <div className="px-3 pb-3 pt-1 ml-6 border-l border-tactical-border space-y-3">
+                              <div>
+                                {objTasks.length === 0 ? <p className="text-xs text-text-muted py-2">No tasks yet</p> : (
+                                  <div className="space-y-1">{objTasks.map((task) => (
+                                    <div key={task.id} className="flex items-center gap-2 py-1 group">
+                                      <input type="checkbox" checked={task.status === 'complete'} onChange={() => handleUpdateTaskStatus(task.id, task.status === 'complete' ? 'pending' : 'complete')} className="w-4 h-4 rounded border-tactical-border bg-tactical-panel text-cyber-cyan" />
+                                      <span className={`flex-1 text-sm ${task.status === 'complete' ? 'line-through text-text-muted' : 'text-text-secondary'}`}>{task.name}</span>
+                                      {task.week && <span className="text-xs text-cyber-cyan font-mono">[{task.week}]</span>}
+                                      <button onClick={() => handleDeleteTask(task.id)} className="p-1 text-text-muted hover:text-cyber-red opacity-0 group-hover:opacity-100"><X className="w-3 h-3" /></button>
+                                    </div>
+                                  ))}</div>
+                                )}
+                                {showNewTask === obj.id ? (
+                                  <div className="flex items-center gap-2 mt-2">
+                                    <input type="text" className="input flex-1 text-sm py-1" placeholder="Task name..." value={newTask.name} onChange={(e) => setNewTask({ ...newTask, name: e.target.value })} autoFocus />
+                                    <input type="text" className="input w-20 text-sm py-1 font-mono" placeholder="Week" value={newTask.week} onChange={(e) => setNewTask({ ...newTask, week: e.target.value })} />
+                                    <button onClick={() => handleCreateTask(obj.id)} className="p-1 text-cyber-green"><Save className="w-4 h-4" /></button>
+                                    <button onClick={() => { setShowNewTask(null); setNewTask({ name: '', week: '' }) }} className="p-1 text-text-muted"><X className="w-4 h-4" /></button>
+                                  </div>
+                                ) : <button onClick={() => setShowNewTask(obj.id)} className="flex items-center gap-1 text-xs text-text-muted hover:text-cyber-cyan mt-2"><Plus className="w-3 h-3" /> Add task</button>}
+                              </div>
+
+                              <div className="border-t border-tactical-border pt-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <span className="text-xs font-mono text-text-muted">ATTACHMENTS</span>
+                                  <button onClick={() => { setUploadingFor(obj.id); fileInputRef.current?.click() }} className="flex items-center gap-1 text-xs text-cyber-cyan hover:text-cyber-green" disabled={uploading}>
+                                    <Upload className="w-3 h-3" /> Upload
+                                  </button>
+                                </div>
+                                {uploadingFor === obj.id && uploading && <div className="text-xs text-cyber-cyan py-2">Uploading...</div>}
+                                {objAttachments.length === 0 ? (
+                                  <p className="text-xs text-text-muted">No files attached</p>
+                                ) : (
+                                  <div className="space-y-2">
+                                    {objAttachments.map((att) => {
+                                      const FileIcon = getFileIcon(att.file_type)
+                                      return (
+                                        <div key={att.id} className="flex items-center gap-2 p-2 bg-tactical-panel rounded group">
+                                          <FileIcon className="w-4 h-4 text-text-muted flex-shrink-0" />
+                                          <div className="flex-1 min-w-0">
+                                            <p className="text-sm truncate">{att.file_name}</p>
+                                            <p className="text-[10px] text-text-muted">v{att.version} • {formatFileSize(att.file_size)}</p>
+                                          </div>
+                                          <button onClick={() => handleDownload(att)} className="p-1 text-text-muted hover:text-cyber-cyan"><Download className="w-4 h-4" /></button>
+                                          <button onClick={() => handleDeleteAttachment(att)} className="p-1 text-text-muted hover:text-cyber-red opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+
+                    {showNewObjective === phase.id ? (
+                      <div className="bg-tactical-bg rounded-lg p-3 border border-cyber-cyan">
+                        <div className="space-y-2">
+                          <input type="text" className="input" placeholder="Objective name..." value={newObjective.name} onChange={(e) => setNewObjective({ ...newObjective, name: e.target.value })} autoFocus />
+                          <input type="text" className="input" placeholder="Description (optional)" value={newObjective.description} onChange={(e) => setNewObjective({ ...newObjective, description: e.target.value })} />
+                          <select className="input" value={newObjective.status} onChange={(e) => setNewObjective({ ...newObjective, status: e.target.value })}>
+                            <option value="pending">Pending</option>
+                            <option value="active">Active</option>
+                            <option value="complete">Complete</option>
+                          </select>
+                          <div className="flex gap-2">
+                            <button onClick={() => handleCreateObjective(phase.id)} className="btn-success">Create</button>
+                            <button onClick={() => { setShowNewObjective(null); setNewObjective({ name: '', description: '', status: 'pending' }) }} className="btn-secondary">Cancel</button>
+                          </div>
+                        </div>
+                      </div>
+                    ) : <button onClick={() => setShowNewObjective(phase.id)} className="flex items-center gap-2 text-sm text-text-muted hover:text-cyber-cyan py-2"><Plus className="w-4 h-4" /> Add objective</button>}
                   </div>
                 )}
               </div>
+            )
+          })}
+        </div>
+      )}
 
-              {isExpanded && !editingPhase && (
-                <div className="p-4 space-y-3">
-                  {phaseObjectives.map((obj) => {
-                    const objTasks = tasks.filter(t => t.objective_id === obj.id)
-                    const objAttachments = getObjectiveAttachments(obj.id)
-                    const isObjExpanded = expandedObjectives.has(obj.id)
-                    const StatusIcon = STATUS_CONFIG[obj.status]?.icon || AlertTriangle
-                    const statusColor = STATUS_CONFIG[obj.status]?.color || 'cyber-amber'
+      {/* Feedback Tab */}
+      {activeTab === 'feedback' && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Meeting Feedback</h2>
+            <button onClick={() => setShowNewFeedback(true)} className="btn-primary flex items-center gap-2">
+              <Plus className="w-4 h-4" /><span className="hidden sm:inline">Add Feedback</span>
+            </button>
+          </div>
 
-                    return (
-                      <div key={obj.id} className="bg-tactical-bg rounded-lg overflow-hidden">
-                        {editingObjective === obj.id ? (
-                          <div className="p-3 space-y-2">
-                            <input type="text" className="input" value={editObjForm.name || ''} onChange={(e) => setEditObjForm({ ...editObjForm, name: e.target.value })} placeholder="Objective name" autoFocus />
-                            <input type="text" className="input" value={editObjForm.description || ''} onChange={(e) => setEditObjForm({ ...editObjForm, description: e.target.value })} placeholder="Description" />
-                            <select className="input" value={editObjForm.status || 'pending'} onChange={(e) => setEditObjForm({ ...editObjForm, status: e.target.value })}>
-                              <option value="pending">Pending</option>
-                              <option value="active">Active</option>
-                              <option value="complete">Complete</option>
-                              <option value="blocked">Blocked</option>
-                            </select>
-                            <div className="flex gap-2">
-                              <button onClick={() => handleUpdateObjective(obj.id)} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
-                              <button onClick={() => setEditingObjective(null)} className="btn-secondary">Cancel</button>
+          {showNewFeedback && (
+            <div className="card p-4 border-cyber-cyan">
+              <h3 className="font-medium mb-3">New Meeting Feedback</h3>
+              <div className="space-y-3">
+                <input type="text" className="input" placeholder="Meeting title..." value={newFeedback.title} onChange={(e) => setNewFeedback({ ...newFeedback, title: e.target.value })} autoFocus />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="text-xs text-text-muted font-mono block mb-1">DATE</label>
+                    <input type="date" className="input" value={newFeedback.meeting_date} onChange={(e) => setNewFeedback({ ...newFeedback, meeting_date: e.target.value })} />
+                  </div>
+                  <div>
+                    <label className="text-xs text-text-muted font-mono block mb-1">LINKED OBJECTIVE</label>
+                    <select className="input" value={newFeedback.objective_id} onChange={(e) => setNewFeedback({ ...newFeedback, objective_id: e.target.value })}>
+                      <option value="">None (General)</option>
+                      {objectives.map(obj => <option key={obj.id} value={obj.id}>{obj.name}</option>)}
+                    </select>
+                  </div>
+                </div>
+                <div>
+                  <label className="text-xs text-text-muted font-mono block mb-1">ATTENDEES</label>
+                  <input type="text" className="input" placeholder="e.g., John, Sarah, Mike" value={newFeedback.attendees} onChange={(e) => setNewFeedback({ ...newFeedback, attendees: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs text-text-muted font-mono block mb-1">NOTES</label>
+                  <textarea className="input min-h-[100px]" placeholder="Meeting notes and discussion points..." value={newFeedback.notes} onChange={(e) => setNewFeedback({ ...newFeedback, notes: e.target.value })} />
+                </div>
+                <div>
+                  <label className="text-xs text-text-muted font-mono block mb-1">ACTION ITEMS (one per line)</label>
+                  <textarea className="input min-h-[80px] font-mono text-sm" placeholder="- Follow up with stakeholder&#10;- Update documentation&#10;- Schedule next review" value={newFeedback.action_items} onChange={(e) => setNewFeedback({ ...newFeedback, action_items: e.target.value })} />
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={handleCreateFeedback} className="btn-success">Create</button>
+                  <button onClick={() => { setShowNewFeedback(false); setNewFeedback({ title: '', meeting_date: new Date().toISOString().split('T')[0], attendees: '', notes: '', action_items: '', objective_id: '' }) }} className="btn-secondary">Cancel</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {feedbackList.length === 0 && !showNewFeedback ? (
+            <div className="card p-8 text-center">
+              <MessageSquare className="w-12 h-12 text-text-muted mx-auto mb-3" />
+              <p className="text-text-muted">No feedback yet. Add meeting notes to track discussions and action items.</p>
+            </div>
+          ) : feedbackList.map((fb) => {
+            const isExpanded = expandedFeedback.has(fb.id)
+            const actionItems = fb.action_items?.split('\n').filter(item => item.trim()) || []
+
+            return (
+              <div key={fb.id} className="card overflow-hidden">
+                {editingFeedback === fb.id ? (
+                  <div className="p-4 space-y-3">
+                    <input type="text" className="input" value={editFeedbackForm.title || ''} onChange={(e) => setEditFeedbackForm({ ...editFeedbackForm, title: e.target.value })} placeholder="Meeting title" autoFocus />
+                    <div className="grid grid-cols-2 gap-3">
+                      <input type="date" className="input" value={editFeedbackForm.meeting_date || ''} onChange={(e) => setEditFeedbackForm({ ...editFeedbackForm, meeting_date: e.target.value })} />
+                      <select className="input" value={editFeedbackForm.objective_id || ''} onChange={(e) => setEditFeedbackForm({ ...editFeedbackForm, objective_id: e.target.value })}>
+                        <option value="">None (General)</option>
+                        {objectives.map(obj => <option key={obj.id} value={obj.id}>{obj.name}</option>)}
+                      </select>
+                    </div>
+                    <input type="text" className="input" value={editFeedbackForm.attendees || ''} onChange={(e) => setEditFeedbackForm({ ...editFeedbackForm, attendees: e.target.value })} placeholder="Attendees" />
+                    <textarea className="input min-h-[100px]" value={editFeedbackForm.notes || ''} onChange={(e) => setEditFeedbackForm({ ...editFeedbackForm, notes: e.target.value })} placeholder="Notes" />
+                    <textarea className="input min-h-[80px] font-mono text-sm" value={editFeedbackForm.action_items || ''} onChange={(e) => setEditFeedbackForm({ ...editFeedbackForm, action_items: e.target.value })} placeholder="Action items (one per line)" />
+                    <div className="flex gap-2">
+                      <button onClick={() => handleUpdateFeedback(fb.id)} className="btn-success flex items-center gap-1"><Save className="w-4 h-4" /> Save</button>
+                      <button onClick={() => setEditingFeedback(null)} className="btn-secondary">Cancel</button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-4 cursor-pointer hover:bg-tactical-hover transition-colors" onClick={() => toggleFeedback(fb.id)}>
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          {isExpanded ? <ChevronDown className="w-5 h-5 text-cyber-cyan" /> : <ChevronRight className="w-5 h-5 text-text-muted" />}
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h3 className="font-semibold">{fb.title}</h3>
+                              <button onClick={(e) => { e.stopPropagation(); setEditFeedbackForm(fb); setEditingFeedback(fb.id) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-3 h-3" /></button>
+                            </div>
+                            <div className="flex items-center gap-3 text-xs text-text-muted mt-1">
+                              <span className="flex items-center gap-1"><Calendar className="w-3 h-3" />{formatDate(fb.meeting_date)}</span>
+                              {fb.attendees && <span className="flex items-center gap-1"><Users className="w-3 h-3" />{fb.attendees}</span>}
+                              {fb.objective_id && <span className="text-cyber-cyan">→ {getObjectiveName(fb.objective_id)}</span>}
+                              {actionItems.length > 0 && <span className="flex items-center gap-1"><ListTodo className="w-3 h-3" />{actionItems.length} actions</span>}
                             </div>
                           </div>
-                        ) : (
-                          <div className={`p-3 border-l-4 border-${statusColor} cursor-pointer hover:bg-tactical-hover transition-colors`} onClick={() => toggleObjective(obj.id)}>
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                {isObjExpanded ? <ChevronDown className="w-4 h-4 text-text-muted" /> : <ChevronRight className="w-4 h-4 text-text-muted" />}
-                                <StatusIcon className={`w-5 h-5 text-${statusColor}`} />
-                                <div>
-                                  <div className="flex items-center gap-2">
-                                    <h4 className="font-medium">{obj.name}</h4>
-                                    <button onClick={(e) => { e.stopPropagation(); setEditObjForm(obj); setEditingObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-cyan"><Pencil className="w-3 h-3" /></button>
-                                    {objAttachments.length > 0 && (
-                                      <span className="flex items-center gap-1 text-xs text-text-muted"><Paperclip className="w-3 h-3" />{objAttachments.length}</span>
-                                    )}
-                                  </div>
-                                  {obj.description && <p className="text-xs text-text-muted mt-0.5">{obj.description}</p>}
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <select value={obj.status} onChange={(e) => { e.stopPropagation(); handleUpdateObjectiveStatus(obj.id, e.target.value) }} onClick={(e) => e.stopPropagation()} className="text-xs bg-tactical-panel border border-tactical-border rounded px-2 py-1">
-                                  <option value="pending">Pending</option>
-                                  <option value="active">Active</option>
-                                  <option value="complete">Complete</option>
-                                  <option value="blocked">Blocked</option>
-                                </select>
-                                <button onClick={(e) => { e.stopPropagation(); handleDeleteObjective(obj.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {isObjExpanded && editingObjective !== obj.id && (
-                          <div className="px-3 pb-3 pt-1 ml-6 border-l border-tactical-border space-y-3">
-                            {/* Tasks */}
-                            <div>
-                              {objTasks.length === 0 ? <p className="text-xs text-text-muted py-2">No tasks yet</p> : (
-                                <div className="space-y-1">{objTasks.map((task) => (
-                                  <div key={task.id} className="flex items-center gap-2 py-1 group">
-                                    <input type="checkbox" checked={task.status === 'complete'} onChange={() => handleUpdateTaskStatus(task.id, task.status === 'complete' ? 'pending' : 'complete')} className="w-4 h-4 rounded border-tactical-border bg-tactical-panel text-cyber-cyan" />
-                                    <span className={`flex-1 text-sm ${task.status === 'complete' ? 'line-through text-text-muted' : 'text-text-secondary'}`}>{task.name}</span>
-                                    {task.week && <span className="text-xs text-cyber-cyan font-mono">[{task.week}]</span>}
-                                    <button onClick={() => handleDeleteTask(task.id)} className="p-1 text-text-muted hover:text-cyber-red opacity-0 group-hover:opacity-100"><X className="w-3 h-3" /></button>
-                                  </div>
-                                ))}</div>
-                              )}
-                              {showNewTask === obj.id ? (
-                                <div className="flex items-center gap-2 mt-2">
-                                  <input type="text" className="input flex-1 text-sm py-1" placeholder="Task name..." value={newTask.name} onChange={(e) => setNewTask({ ...newTask, name: e.target.value })} autoFocus />
-                                  <input type="text" className="input w-20 text-sm py-1 font-mono" placeholder="Week" value={newTask.week} onChange={(e) => setNewTask({ ...newTask, week: e.target.value })} />
-                                  <button onClick={() => handleCreateTask(obj.id)} className="p-1 text-cyber-green"><Save className="w-4 h-4" /></button>
-                                  <button onClick={() => { setShowNewTask(null); setNewTask({ name: '', week: '' }) }} className="p-1 text-text-muted"><X className="w-4 h-4" /></button>
-                                </div>
-                              ) : <button onClick={() => setShowNewTask(obj.id)} className="flex items-center gap-1 text-xs text-text-muted hover:text-cyber-cyan mt-2"><Plus className="w-3 h-3" /> Add task</button>}
-                            </div>
-
-                            {/* Attachments */}
-                            <div className="border-t border-tactical-border pt-3">
-                              <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-mono text-text-muted">ATTACHMENTS</span>
-                                <button 
-                                  onClick={() => { setUploadingFor(obj.id); fileInputRef.current?.click() }} 
-                                  className="flex items-center gap-1 text-xs text-cyber-cyan hover:text-cyber-green"
-                                  disabled={uploading}
-                                >
-                                  <Upload className="w-3 h-3" /> Upload
-                                </button>
-                              </div>
-                              
-                              {uploadingFor === obj.id && uploading && (
-                                <div className="text-xs text-cyber-cyan py-2">Uploading...</div>
-                              )}
-                              
-                              {objAttachments.length === 0 ? (
-                                <p className="text-xs text-text-muted">No files attached</p>
-                              ) : (
-                                <div className="space-y-2">
-                                  {objAttachments.map((att) => {
-                                    const FileIcon = getFileIcon(att.file_type)
-                                    return (
-                                      <div key={att.id} className="flex items-center gap-2 p-2 bg-tactical-panel rounded group">
-                                        <FileIcon className="w-4 h-4 text-text-muted flex-shrink-0" />
-                                        <div className="flex-1 min-w-0">
-                                          <p className="text-sm truncate">{att.file_name}</p>
-                                          <p className="text-[10px] text-text-muted">
-                                            v{att.version} • {formatFileSize(att.file_size)}
-                                            {att.notes && ` • ${att.notes}`}
-                                          </p>
-                                        </div>
-                                        <button onClick={() => handleDownload(att)} className="p-1 text-text-muted hover:text-cyber-cyan"><Download className="w-4 h-4" /></button>
-                                        <button onClick={() => handleDeleteAttachment(att)} className="p-1 text-text-muted hover:text-cyber-red opacity-0 group-hover:opacity-100"><Trash2 className="w-3 h-3" /></button>
-                                      </div>
-                                    )
-                                  })}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )
-                  })}
-
-                  {showNewObjective === phase.id ? (
-                    <div className="bg-tactical-bg rounded-lg p-3 border border-cyber-cyan">
-                      <div className="space-y-2">
-                        <input type="text" className="input" placeholder="Objective name..." value={newObjective.name} onChange={(e) => setNewObjective({ ...newObjective, name: e.target.value })} autoFocus />
-                        <input type="text" className="input" placeholder="Description (optional)" value={newObjective.description} onChange={(e) => setNewObjective({ ...newObjective, description: e.target.value })} />
-                        <select className="input" value={newObjective.status} onChange={(e) => setNewObjective({ ...newObjective, status: e.target.value })}>
-                          <option value="pending">Pending</option>
-                          <option value="active">Active</option>
-                          <option value="complete">Complete</option>
-                        </select>
-                        <div className="flex gap-2">
-                          <button onClick={() => handleCreateObjective(phase.id)} className="btn-success">Create</button>
-                          <button onClick={() => { setShowNewObjective(null); setNewObjective({ name: '', description: '', status: 'pending' }) }} className="btn-secondary">Cancel</button>
                         </div>
+                        <button onClick={(e) => { e.stopPropagation(); handleDeleteFeedback(fb.id) }} className="p-1 text-text-muted hover:text-cyber-red"><Trash2 className="w-4 h-4" /></button>
                       </div>
                     </div>
-                  ) : <button onClick={() => setShowNewObjective(phase.id)} className="flex items-center gap-2 text-sm text-text-muted hover:text-cyber-cyan py-2"><Plus className="w-4 h-4" /> Add objective</button>}
-                </div>
-              )}
-            </div>
-          )
-        })}
-      </div>
+
+                    {isExpanded && (
+                      <div className="px-4 pb-4 border-t border-tactical-border pt-3 ml-8 space-y-3">
+                        {fb.notes && (
+                          <div>
+                            <span className="text-xs font-mono text-text-muted">NOTES</span>
+                            <p className="text-sm text-text-secondary mt-1 whitespace-pre-wrap">{fb.notes}</p>
+                          </div>
+                        )}
+                        {actionItems.length > 0 && (
+                          <div>
+                            <span className="text-xs font-mono text-text-muted">ACTION ITEMS</span>
+                            <div className="mt-2 space-y-2">
+                              {actionItems.map((item, idx) => (
+                                <div key={idx} className="flex items-center gap-2 p-2 bg-tactical-bg rounded group">
+                                  <ListTodo className="w-4 h-4 text-cyber-amber flex-shrink-0" />
+                                  <span className="flex-1 text-sm">{item.replace(/^[-•]\s*/, '')}</span>
+                                  <button 
+                                    onClick={() => handleCreateTaskFromFeedback(fb, item.replace(/^[-•]\s*/, ''))} 
+                                    className="text-xs text-cyber-cyan hover:text-cyber-green opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    + Create Task
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
