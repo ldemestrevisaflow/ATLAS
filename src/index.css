@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-tactical-bg text-text-primary font-sans antialiased;
+    min-height: 100vh;
+  }
+  
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2a3540 #0a0e12;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply px-4 py-2 bg-cyber-cyan/20 border border-cyber-cyan text-cyber-cyan rounded 
+           hover:bg-cyber-cyan/30 transition-all duration-200 font-medium;
+  }
+  
+  .btn-secondary {
+    @apply px-4 py-2 bg-tactical-panel border border-tactical-border text-text-secondary rounded 
+           hover:bg-tactical-hover hover:text-text-primary transition-all duration-200;
+  }
+  
+  .btn-danger {
+    @apply px-4 py-2 bg-cyber-red/20 border border-cyber-red text-cyber-red rounded 
+           hover:bg-cyber-red/30 transition-all duration-200;
+  }
+  
+  .btn-success {
+    @apply px-4 py-2 bg-cyber-green/20 border border-cyber-green text-cyber-green rounded 
+           hover:bg-cyber-green/30 transition-all duration-200;
+  }
+  
+  .card {
+    @apply bg-tactical-panel border border-tactical-border rounded-lg;
+  }
+  
+  .card-hover {
+    @apply card hover:border-cyber-cyan/50 transition-all duration-200;
+  }
+  
+  .input {
+    @apply w-full px-3 py-2 bg-tactical-bg border border-tactical-border rounded 
+           text-text-primary placeholder-text-muted
+           focus:outline-none focus:border-cyber-cyan focus:ring-1 focus:ring-cyber-cyan/50
+           transition-all duration-200;
+  }
+  
+  .label {
+    @apply block text-sm font-medium text-text-secondary mb-1;
+  }
+  
+  .status-complete {
+    @apply bg-cyber-green/20 text-cyber-green border border-cyber-green/50;
+  }
+  
+  .status-active {
+    @apply bg-cyber-cyan/20 text-cyber-cyan border border-cyber-cyan/50;
+  }
+  
+  .status-pending {
+    @apply bg-cyber-amber/20 text-cyber-amber border border-cyber-amber/50;
+  }
+  
+  .status-blocked {
+    @apply bg-cyber-red/20 text-cyber-red border border-cyber-red/50;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-cyber-cyan to-cyber-green bg-clip-text text-transparent;
+  }
+}
