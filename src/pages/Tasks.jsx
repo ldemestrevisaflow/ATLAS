@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, Circle, Calendar, Clock, Flag, Filter, Sparkles, Download, ChevronDown, AlertTriangle, Target, FileText, FileSpreadsheet, CalendarDays } from 'lucide-react'
 import { getOperations, getObjectivesByOperation, getTasksByOperation, updateTask } from '../lib/data'
 
@@ -40,6 +40,7 @@ const isThisWeek = (dateStr) => {
 }
 
 export default function Tasks() {
+  const navigate = useNavigate()
   const [operations, setOperations] = useState([])
   const [allTasks, setAllTasks] = useState([])
   const [objectives, setObjectives] = useState([])
@@ -216,7 +217,6 @@ END:VCALENDAR`
   const exportToDocx = () => {
     const today = new Date().toLocaleDateString('en-AU', { day: 'numeric', month: 'long', year: 'numeric' })
     
-    // Build HTML table that Word can import
     const htmlContent = `
 <!DOCTYPE html>
 <html>
@@ -311,7 +311,6 @@ END:VCALENDAR`
 </body>
 </html>`
 
-    // Create blob and download as .doc (Word can open HTML as doc)
     const blob = new Blob([htmlContent], { type: 'application/msword' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
@@ -352,7 +351,10 @@ END:VCALENDAR`
           <p className="text-text-muted text-sm mt-1">All tasks across operations</p>
         </div>
         <div className="flex gap-2">
-          <button className="btn-primary flex items-center gap-2">
+          <button 
+            onClick={() => navigate('/ai-scheduler')}
+            className="btn-primary flex items-center gap-2"
+          >
             <Sparkles className="w-4 h-4" />
             <span>AI Schedule</span>
           </button>
