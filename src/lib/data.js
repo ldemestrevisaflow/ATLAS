@@ -5,6 +5,7 @@ const STORAGE_KEYS = {
   phases: 'atlas_phases',
   objectives: 'atlas_objectives',
   tasks: 'atlas_tasks',
+  attachments: 'atlas_attachments',
 }
 
 const getLocal = (key) => {
@@ -329,4 +330,145 @@ export const getOperationStats = async (operationId) => {
     completedTasks,
     progress,
   }
+}
+
+// ============ ATTACHMENTS ============
+
+export const getAttachmentsByObjective = async (objectiveId) => {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('attachments')
+      .select('*')
+      .eq('objective_id', objectiveId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+  }
+  return getLocal(STORAGE_KEYS.attachments)
+    .filter(a => a.objective_id === objectiveId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+}
+
+export const getAttachmentsByOperation = async (operationId) => {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase
+      .from('attachments')
+      .select('*')
+      .eq('operation_id', operationId)
+      .order('created_at', { ascending: false })
+    if (error) throw error
+    return data
+  }
+  return getLocal(STORAGE_KEYS.attachments)
+    .filter(a => a.operation_id === operationId)
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+}
+
+export const uploadAttachment = async (file, operationId, objectiveId, notes = '') => {
+  const fileExt = file.name.split('.').pop()
+  const fileName = file.name
+  const filePath = `${operationId}/${objectiveId || 'general'}/${Date.now()}-${fileName}`
+  
+  if (isSupabaseConfigured()) {
+    // Upload file to storage
+    const { error: uploadError } = await supabase.storage
+      .from('attachments')
+      .upload(filePath, file)
+    
+    if (uploadError) throw uploadError
+    
+    // Get existing attachments to determine version
+    const existing = await getAttachmentsByObjective(objectiveId)
+    const sameNameFiles = existing.filter(a => a.file_name === fileName)
+    const version = sameNameFiles.length + 1
+    
+    // Create attachment record
+    const attachment = {
+      id: generateId(),
+      operation_id: operationId,
+      objective_id: objectiveId,
+      file_name: fileName,
+      file_path: filePath,
+      file_size: file.size,
+      file_type: file.type || fileExt,
+      version,
+      notes,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }
+    
+    const { data, error } = await supabase
+      .from('attachments')
+      .insert(attachment)
+      .select()
+      .single()
+    
+    if (error) throw error
+    return data
+  }
+  
+  // Local storage fallback (limited - just stores metadata)
+  const attachment = {
+    id: generateId(),
+    operation_id: operationId,
+    objective_id: objectiveId,
+    file_name: fileName,
+    file_path: filePath,
+    file_size: file.size,
+    file_type: file.type || fileExt,
+    version: 1,
+    notes,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  }
+  
+  const attachments = getLocal(STORAGE_KEYS.attachments)
+  attachments.push(attachment)
+  setLocal(STORAGE_KEYS.attachments, attachments)
+  return attachment
+}
+
+export const downloadAttachment = async (attachment) => {
+  if (isSupabaseConfigured()) {
+    const { data, error } = await supabase.storage
+      .from('attachments')
+      .download(attachment.file_path)
+    
+    if (error) throw error
+    
+    // Create download link
+    const url = URL.createObjectURL(data)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = attachment.file_name
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    return
+  }
+  
+  throw new Error('File download not available in local mode')
+}
+
+export const deleteAttachment = async (attachment) => {
+  if (isSupabaseConfigured()) {
+    // Delete from storage
+    const { error: storageError } = await supabase.storage
+      .from('attachments')
+      .remove([attachment.file_path])
+    
+    if (storageError) console.warn('Storage delete error:', storageError)
+    
+    // Delete record
+    const { error } = await supabase
+      .from('attachments')
+      .delete()
+      .eq('id', attachment.id)
+    
+    if (error) throw error
+    return
+  }
+  
+  setLocal(STORAGE_KEYS.attachments, getLocal(STORAGE_KEYS.attachments).filter(a => a.id !== attachment.id))
 }
