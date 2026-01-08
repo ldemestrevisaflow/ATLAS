@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, Target, BarChart3, Map } from 'lucide-react'
+import { Menu, X, Target, BarChart3, Map, ListTodo } from 'lucide-react'
 
 export default function Layout({ children }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -27,27 +27,34 @@ export default function Layout({ children }) {
             <nav className="hidden md:flex items-center gap-1">
               <Link 
                 to="/" 
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive('/') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
               >
                 <Target className="w-4 h-4" />
                 <span>Dashboard</span>
               </Link>
               <Link 
+                to="/tasks" 
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive('/tasks') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
+              >
+                <ListTodo className="w-4 h-4" />
+                <span>Tasks</span>
+              </Link>
+              <Link 
                 to="/battlemap" 
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/battlemap') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive('/battlemap') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
               >
                 <Map className="w-4 h-4" />
                 <span>Battle Map</span>
               </Link>
               <Link 
                 to="/metrics" 
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/metrics') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${isActive('/metrics') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
               >
                 <BarChart3 className="w-4 h-4" />
                 <span>Metrics</span>
               </Link>
               <Link to="/operation/new" className="btn-primary ml-2">
-                + New Operation
+                + New Op
               </Link>
             </nav>
 
@@ -70,6 +77,14 @@ export default function Layout({ children }) {
               >
                 <Target className="w-4 h-4" />
                 <span>Dashboard</span>
+              </Link>
+              <Link 
+                to="/tasks" 
+                onClick={() => setMobileMenuOpen(false)}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${isActive('/tasks') ? 'bg-cyber-cyan/20 text-cyber-cyan' : 'text-text-muted hover:text-text-primary hover:bg-tactical-hover'}`}
+              >
+                <ListTodo className="w-4 h-4" />
+                <span>Tasks</span>
               </Link>
               <Link 
                 to="/battlemap" 
